@@ -32,3 +32,6 @@ qa_render/*
 Thumbs.db
 .vscode/
 .idea/
+
+# 격리 작업공간
+.worktrees/
