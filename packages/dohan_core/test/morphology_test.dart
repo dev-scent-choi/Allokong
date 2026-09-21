@@ -1,0 +1,124 @@
+import 'package:dohan_core/dohan_core.dart';
+import 'package:test/test.dart';
+
+import 'support/fixtures.dart';
+
+void main() {
+  group('estimateLineWidth', () {
+    test('3픽셀 두께 선에서 3을 얻는다', () {
+      final mask = maskFromRows([
+        '..........',
+        '...###....',
+        '...###....',
+        '...###....',
+        '..........',
+      ]);
+
+      expect(estimateLineWidth(mask), 3);
+    });
+
+    test('선이 없으면 1을 반환한다', () {
+      expect(estimateLineWidth(maskFromRows(['....', '....'])), 1);
+    });
+  });
+
+  group('dilate / erode', () {
+    test('팽창은 선을 반지름만큼 넓힌다', () {
+      final mask = maskFromRows([
+        '.....',
+        '.....',
+        '..#..',
+        '.....',
+        '.....',
+      ]);
+
+      final grown = dilate(mask, 1);
+
+      expect(rowsFromMask(grown), [
+        '.....',
+        '.###.',
+        '.###.',
+        '.###.',
+        '.....',
+      ]);
+    });
+
+    test('침식은 팽창을 되돌린다', () {
+      final mask = maskFromRows([
+        '.....',
+        '.###.',
+        '.###.',
+        '.###.',
+        '.....',
+      ]);
+
+      expect(rowsFromMask(erode(mask, 1)), [
+        '.....',
+        '.....',
+        '..#..',
+        '.....',
+        '.....',
+      ]);
+    });
+  });
+
+  group('closeLines', () {
+    test('끊긴 선의 틈을 메운다', () {
+      // 세로선 한가운데가 2픽셀 끊겨 있다. 이대로 라벨링하면 안쪽과 바깥쪽이
+      // 하나로 이어져 색이 새어나간다.
+      final mask = maskFromRows([
+        '.........',
+        '....#....',
+        '....#....',
+        '....#....',
+        '.........', // 틈
+        '.........', // 틈
+        '....#....',
+        '....#....',
+        '....#....',
+        '.........',
+      ]);
+
+      expect(mask.isInk(4, 4), isFalse, reason: '보정 전에는 틈이 비어 있다');
+
+      final closed = closeLines(mask, radius: 2);
+
+      expect(closed.isInk(4, 4), isTrue, reason: '틈이 메워져야 한다');
+      expect(closed.isInk(4, 5), isTrue, reason: '틈이 메워져야 한다');
+    });
+
+    test('반지름을 주지 않으면 선 두께에서 추정한다', () {
+      final mask = maskFromRows([
+        '..........',
+        '..####....',
+        '..####....',
+        '..........',
+        '..####....',
+        '..####....',
+        '..........',
+      ]);
+
+      // 선 두께 4 → 반지름 2 → 세로 1픽셀 틈은 메워진다.
+      final closed = closeLines(mask);
+
+      expect(closed.isInk(3, 3), isTrue);
+    });
+
+    test('닫힌 도형의 내부를 채우지는 않는다', () {
+      final mask = maskFromRows([
+        '.........',
+        '.#######.',
+        '.#.....#.',
+        '.#.....#.',
+        '.#.....#.',
+        '.#######.',
+        '.........',
+      ]);
+
+      final closed = closeLines(mask, radius: 1);
+
+      expect(closed.isInk(4, 3), isFalse,
+          reason: '도형 내부는 여백으로 남아야 칠할 수 있다');
+    });
+  });
+}
