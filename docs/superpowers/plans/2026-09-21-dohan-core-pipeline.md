@@ -559,6 +559,9 @@ import 'package:dohan_core/dohan_core.dart';
 ///
 /// 이 헬퍼 덕분에 테스트에서 도안 모양을 눈으로 읽을 수 있다.
 BinaryMask maskFromRows(List<String> rows) {
+  if (rows.isEmpty) {
+    throw ArgumentError('행이 최소 하나는 있어야 합니다.');
+  }
   final h = rows.length;
   final w = rows.first.length;
   for (final row in rows) {
@@ -611,6 +614,74 @@ void main() {
 
     test('선이 없으면 1을 반환한다', () {
       expect(estimateLineWidth(maskFromRows(['....', '....'])), 1);
+    });
+
+    test('길게 누운 획에서도 길이가 아니라 두께를 잰다', () {
+      final mask = maskFromRows([
+        '......................',
+        '.####################.',
+        '.####################.',
+        '.####################.',
+        '......................',
+      ]);
+
+      expect(estimateLineWidth(mask), 3,
+          reason: '길이 20, 두께 3인 획의 두께는 3이다');
+    });
+  });
+
+  group('경계 처리', () {
+    test('침식은 전부 선인 마스크를 그대로 둔다', () {
+      final mask = maskFromRows([
+        '#####',
+        '#####',
+        '#####',
+        '#####',
+        '#####',
+      ]);
+
+      expect(erode(mask, 1).inkCount, 25,
+          reason: '캔버스 밖을 여백으로 보면 테두리 한 겹이 깎여 나간다');
+    });
+
+    test('보정이 테두리에 닿은 선을 잘라내지 않는다', () {
+      // 캔버스 가장자리에 딱 붙은 테두리 도형. 침식이 캔버스 밖을 여백으로
+      // 보면 이 테두리가 지워지고, 안과 밖이 이어져 색이 새어나간다.
+      final mask = maskFromRows([
+        '#######',
+        '#.....#',
+        '#.....#',
+        '#.....#',
+        '#######',
+      ]);
+
+      final closed = closeLines(mask, radius: 1);
+
+      expect(closed.isInk(0, 0), isTrue);
+      expect(closed.isInk(3, 0), isTrue);
+      expect(closed.isInk(0, 2), isTrue);
+      expect(closed.isInk(6, 4), isTrue);
+      expect(closed.isInk(3, 2), isFalse,
+          reason: '내부는 여전히 칠할 수 있어야 한다');
+    });
+
+    test('보정이 캔버스 여백에 없던 선을 만들지 않는다', () {
+      // 캔버스 가장자리에서 반지름만큼 떨어진 획. 팽창이 여백까지 자란 뒤
+      // 침식이 되돌리지 못하면, 원본에 없던 선이 테두리에 눌어붙는다.
+      final mask = maskFromRows([
+        '........',
+        '..####..',
+        '..####..',
+        '........',
+      ]);
+
+      final closed = closeLines(mask, radius: 1);
+
+      expect(closed.isInk(3, 0), isFalse,
+          reason: '위쪽 여백은 여백으로 남아야 한다');
+      expect(closed.isInk(3, 3), isFalse,
+          reason: '아래쪽 여백은 여백으로 남아야 한다');
+      expect(closed.isInk(3, 1), isTrue, reason: '원래 선은 남아야 한다');
     });
   });
 
@@ -729,29 +800,67 @@ Expected: FAIL — `Undefined name 'estimateLineWidth'`
 `packages/dohan_core/lib/src/morphology.dart`:
 
 ```dart
+import 'dart:typed_data';
+
 import 'types.dart';
 
-/// 스캔라인 방향으로 이어진 선 픽셀 길이의 중앙값으로 선 두께를 추정한다.
+/// 선 두께를 추정한다.
 ///
-/// 평균이 아니라 중앙값을 쓰는 이유는, 가로로 누운 긴 선분 하나가 통계를
-/// 끌어올리는 것을 막기 위해서다.
+/// 각 선 픽셀에서 가로로 이어진 길이와 세로로 이어진 길이 중 **작은 쪽**을
+/// 그 픽셀의 두께로 보고, 전체의 중앙값을 취한다. 가로 런만 재면 길게 누운
+/// 획의 *길이*를 두께로 착각해(길이 20의 3픽셀 획 → 20) 보정 반지름이 과도
+/// 하게 커지고 가까운 디테일끼리 붙어버린다. 평균이 아니라 중앙값을 쓰는
+/// 것은 몇 개의 굵은 덩어리가 통계를 끌어올리는 것을 막기 위해서다.
 int estimateLineWidth(BinaryMask mask) {
-  final runs = <int>[];
-  for (var y = 0; y < mask.height; y++) {
-    var run = 0;
-    for (var x = 0; x < mask.width; x++) {
-      if (mask.isInk(x, y)) {
-        run++;
-      } else {
-        if (run > 0) runs.add(run);
-        run = 0;
+  final w = mask.width;
+  final h = mask.height;
+  final horizontal = Int32List(w * h);
+  final vertical = Int32List(w * h);
+
+  for (var y = 0; y < h; y++) {
+    var x = 0;
+    while (x < w) {
+      if (mask.ink[y * w + x] == 0) {
+        x++;
+        continue;
+      }
+      final start = x;
+      while (x < w && mask.ink[y * w + x] == 1) {
+        x++;
+      }
+      for (var i = start; i < x; i++) {
+        horizontal[y * w + i] = x - start;
       }
     }
-    if (run > 0) runs.add(run);
   }
-  if (runs.isEmpty) return 1;
-  runs.sort();
-  return runs[runs.length ~/ 2];
+
+  for (var x = 0; x < w; x++) {
+    var y = 0;
+    while (y < h) {
+      if (mask.ink[y * w + x] == 0) {
+        y++;
+        continue;
+      }
+      final start = y;
+      while (y < h && mask.ink[y * w + x] == 1) {
+        y++;
+      }
+      for (var i = start; i < y; i++) {
+        vertical[i * w + x] = y - start;
+      }
+    }
+  }
+
+  final widths = <int>[];
+  for (var i = 0; i < w * h; i++) {
+    if (mask.ink[i] == 0) continue;
+    final hr = horizontal[i];
+    final vr = vertical[i];
+    widths.add(hr < vr ? hr : vr);
+  }
+  if (widths.isEmpty) return 1;
+  widths.sort();
+  return widths[widths.length ~/ 2];
 }
 
 BinaryMask _sweep(
@@ -769,10 +878,13 @@ BinaryMask _sweep(
       for (var d = -radius; d <= radius; d++) {
         final xx = horizontal ? x + d : x;
         final yy = horizontal ? y : y + d;
-        // 캔버스 밖은 여백(0)으로 본다. 도안에는 흰 여백이 있으므로
-        // 선이 캔버스 경계에 닿는 경우는 없다고 전제한다.
+        // 캔버스 밖은 연산에 따라 다르게 본다. 팽창에서는 여백(0)으로 보아
+        // 선이 캔버스 밖으로 자라지 않게 하고, 침식에서는 선(1)으로 보아
+        // 경계에 닿은 선이 깎여 사라지지 않게 한다. 둘 다 0으로 두면 침식이
+        // 테두리에서 radius 폭만큼 진짜 선을 지워, 보정이 오히려 색이 새는
+        // 틈을 만든다.
         final v = (xx < 0 || yy < 0 || xx >= w || yy >= h)
-            ? 0
+            ? (takeMax ? 0 : 1)
             : src.ink[yy * w + xx];
         if (takeMax && v == 1) {
           value = 1;
@@ -805,16 +917,49 @@ BinaryMask erode(BinaryMask mask, int radius) => _sweep(
       takeMax: false,
     );
 
+/// 마스크 사방에 [radius]만큼 여백을 덧댄다.
+BinaryMask _padWithPaper(BinaryMask src, int radius) {
+  final w = src.width + radius * 2;
+  final h = src.height + radius * 2;
+  final out = BinaryMask.blank(w, h);
+  for (var y = 0; y < src.height; y++) {
+    for (var x = 0; x < src.width; x++) {
+      out.ink[(y + radius) * w + (x + radius)] = src.ink[y * src.width + x];
+    }
+  }
+  return out;
+}
+
+/// 덧댄 여백을 다시 잘라내 원래 크기로 되돌린다.
+BinaryMask _cropPadding(BinaryMask src, int radius, int width, int height) {
+  final out = BinaryMask.blank(width, height);
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      out.ink[y * width + x] = src.ink[(y + radius) * src.width + (x + radius)];
+    }
+  }
+  return out;
+}
+
 /// 닫기 연산(팽창 후 침식). 끊긴 선의 틈을 메우되 선 두께는 대체로 보존한다.
 ///
 /// [radius]를 주지 않으면 추정 선 두께의 절반을 쓴다. 이보다 크게 잡으면
 /// 가느다란 디테일이 서로 붙어버리고, 작게 잡으면 틈이 남아 색이 샌다.
 ///
 /// 최대 [radius]의 2배 너비까지 틈을 메울 수 있다.
+///
+/// 캔버스를 반지름만큼 여백으로 넓힌 뒤 팽창·침식하고 다시 잘라낸다. 팽창
+/// 결과가 캔버스 밖으로 자란 부분을 잘라버리면 침식이 잘린 면을 경계로
+/// 오인해, 테두리의 진짜 선을 깎거나(밖을 여백으로 볼 때) 없던 선을 여백에
+/// 눌어붙게 만든다(밖을 선으로 볼 때). 덧댄 뒤 잘라내면 두 경우가 모두
+/// 사라지고, 잘라낼 영역 안의 픽셀은 침식할 때 캔버스 밖을 참조하지 않으므로
+/// _sweep의 경계 규칙과 무관해진다.
 BinaryMask closeLines(BinaryMask mask, {int? radius}) {
   final r = radius ?? (estimateLineWidth(mask) / 2).ceil().clamp(1, 8);
   if (r <= 0) return mask;
-  return erode(dilate(mask, r), r);
+  final padded = _padWithPaper(mask, r);
+  final closed = erode(dilate(padded, r), r);
+  return _cropPadding(closed, r, mask.width, mask.height);
 }
 ```
 
@@ -830,7 +975,7 @@ export 'src/morphology.dart';
 cd packages/dohan_core && dart test test/morphology_test.dart
 ```
 
-Expected: PASS — 7개 테스트 통과
+Expected: PASS — 11개 테스트 통과
 
 - [ ] **Step 6: 커밋**
 
@@ -2331,7 +2476,7 @@ export 'src/pipeline.dart';
 cd packages/dohan_core && dart test
 ```
 
-Expected: PASS — 패키지 전체 45개 테스트 통과
+Expected: PASS — 패키지 전체 49개 테스트 통과
 
 - [ ] **Step 5: 커밋**
 
@@ -2515,7 +2660,7 @@ export 'src/preview.dart';
 cd packages/dohan_core && dart test
 ```
 
-Expected: PASS — 패키지 전체 49개 테스트 통과
+Expected: PASS — 패키지 전체 53개 테스트 통과
 
 - [ ] **Step 5: 커밋**
 
