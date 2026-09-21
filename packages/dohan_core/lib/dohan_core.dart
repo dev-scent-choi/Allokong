@@ -5,3 +5,4 @@ export 'src/types.dart';
 export 'src/binarize.dart';
 export 'src/morphology.dart';
 export 'src/label_regions.dart';
+export 'src/cleanup.dart';
