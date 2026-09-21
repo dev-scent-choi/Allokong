@@ -124,4 +124,99 @@ void main() {
     expect(out.existsSync(), isTrue);
     expect(img.decodePng(out.readAsBytesSync())!.width, 128);
   });
+
+  group('기본 ID', () {
+    test('확장자만 떼고 점이 여럿인 이름을 보존한다', () {
+      expect(cli.defaultIdFor(File('/tmp/cat.v2.final.png')), 'cat.v2.final');
+      expect(cli.defaultIdFor(File('/tmp/cat.png')), 'cat');
+      expect(cli.defaultIdFor(File('/tmp/noext')), 'noext');
+    });
+  });
+
+  group('CLI 명령 계층', () {
+    test('잘못된 --canvas-size 는 스택 트레이스 대신 65 를 돌려준다', () async {
+      final input = File('${tmp.path}/in.png')
+        ..writeAsBytesSync(img.encodePng(_boxImage()));
+
+      final code = await cli.runDohan(
+          ['build', input.path, '${tmp.path}/out', '--canvas-size=abc']);
+
+      expect(code, 65);
+      expect(Directory('${tmp.path}/out').existsSync(), isFalse);
+    });
+
+    test('허용하지 않는 --category 는 64 를 돌려준다', () async {
+      final input = File('${tmp.path}/in.png')
+        ..writeAsBytesSync(img.encodePng(_boxImage()));
+
+      final code = await cli.runDohan(
+          ['build', input.path, '${tmp.path}/out', '--category=우주선']);
+
+      expect(code, 64);
+    });
+
+    test('인자 개수가 틀리면 64 를 돌려준다', () async {
+      expect(await cli.runDohan(['build', 'only-one-arg']), 64);
+    });
+
+    test('품질 게이트가 거부하면 1 을 돌려준다', () async {
+      final blank = img.Image(width: 64, height: 64, numChannels: 4);
+      img.fill(blank, color: img.ColorRgba8(255, 255, 255, 255));
+      final input = File('${tmp.path}/blank.png')
+        ..writeAsBytesSync(img.encodePng(blank));
+
+      final code = await cli.runDohan(
+          ['build', input.path, '${tmp.path}/out', '--canvas-size=64']);
+
+      expect(code, 1);
+      expect(Directory('${tmp.path}/out').existsSync(), isFalse);
+    });
+  });
+
+  test('세로로 긴 원본도 정사각 캔버스에 비율을 지켜 들어간다', () async {
+    // 128x256 원본을 256 캔버스에 넣는다. 확대·축소가 없으므로 이 테스트는
+    // 순수하게 여백 채우기와 가운데 정렬만 검증한다.
+    final tall = img.Image(width: 128, height: 256, numChannels: 4);
+    img.fill(tall, color: img.ColorRgba8(255, 255, 255, 255));
+    for (var t = 0; t < 3; t++) {
+      for (var x = 20; x <= 107; x++) {
+        tall.setPixelRgba(x, 40 + t, 0, 0, 0, 255);
+        tall.setPixelRgba(x, 215 - t, 0, 0, 0, 255);
+      }
+      for (var y = 40; y <= 215; y++) {
+        tall.setPixelRgba(20 + t, y, 0, 0, 0, 255);
+        tall.setPixelRgba(107 - t, y, 0, 0, 0, 255);
+      }
+    }
+    final input = File('${tmp.path}/tall.png')
+      ..writeAsBytesSync(img.encodePng(tall));
+    final outDir = Directory('${tmp.path}/out');
+
+    final report = await cli.buildDohan(
+      input: input,
+      outDir: outDir,
+      id: 'tall-01',
+      title: '세로',
+      category: 'animal',
+      canvasSize: 256,
+      thresholds: const QualityThresholds(
+        minRegions: 1,
+        minBackgroundRatio: 0.0,
+        minTapDiameterPx: 4,
+      ),
+    );
+
+    expect(report.passed, isTrue, reason: report.koreanSummary());
+
+    final pkg = await readDohanPackage(outDir);
+    expect(pkg.regions.width, 256);
+    expect(pkg.regions.height, 256);
+    expect(pkg.regions.at(1, 128), kRegionBackground,
+        reason: '왼쪽 여백은 배경이어야 한다');
+    expect(pkg.regions.at(254, 128), kRegionBackground,
+        reason: '오른쪽 여백은 배경이어야 한다');
+    expect(pkg.regions.at(128, 128),
+        greaterThanOrEqualTo(kRegionFirstFillable),
+        reason: '가운데 도형 내부는 칠할 수 있어야 한다');
+  });
 }
