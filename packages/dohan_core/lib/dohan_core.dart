@@ -10,3 +10,4 @@ export 'src/quality_gate.dart';
 export 'src/index_map.dart';
 export 'src/dohan_package.dart';
 export 'src/pipeline.dart';
+export 'src/preview.dart';
