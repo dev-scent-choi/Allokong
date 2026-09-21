@@ -35,3 +35,5 @@ Thumbs.db
 
 # 격리 작업공간
 .worktrees/
+.superpowers/
+.claude/worktrees/
