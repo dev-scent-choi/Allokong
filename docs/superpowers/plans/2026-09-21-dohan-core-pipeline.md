@@ -2055,6 +2055,50 @@ void main() {
       expect(text, contains('\n  "id"'));
     });
   });
+
+  group('읽기 실패', () {
+    test('파일이 없으면 어느 파일인지 한국어로 알려준다', () async {
+      await expectLater(
+        readDohanPackage(tmp),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('meta.json'), contains('열 수 없습니다')),
+        )),
+      );
+    });
+
+    test('meta.json 이 깨졌으면 해석 실패를 한국어로 알려준다', () async {
+      File('${tmp.path}/meta.json').writeAsStringSync('{ 이건 JSON이 아니다');
+
+      await expectLater(
+        readDohanPackage(tmp),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('해석할 수 없습니다'),
+        )),
+      );
+    });
+
+    test('lineart.png 가 없으면 그 파일을 지목한다', () async {
+      File('${tmp.path}/meta.json').writeAsStringSync(
+        '{"id":"x","title":"x","category":"animal","source":"bundled",'
+        '"canvasSize":[2,2],"regionCount":0,"difficulty":1,'
+        '"suggestedPalette":[],"regionCentroids":{},'
+        '"createdAt":"2026-09-21T00:00:00.000Z"}',
+      );
+
+      await expectLater(
+        readDohanPackage(tmp),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('lineart.png'),
+        )),
+      );
+    });
+  });
 }
 ```
 
@@ -2187,19 +2231,42 @@ Future<void> writeDohanPackage({
   );
 }
 
-/// [dir]의 도안 패키지를 읽는다.
-Future<DohanPackage> readDohanPackage(Directory dir) async {
-  final metaText = await File('${dir.path}/meta.json').readAsString();
-  final meta =
-      DohanMeta.fromJson(jsonDecode(metaText) as Map<String, dynamic>);
+Future<Uint8List> _readBytes(Directory dir, String name) async {
+  try {
+    return await File('${dir.path}/$name').readAsBytes();
+  } on FileSystemException catch (e) {
+    throw FormatException('$name 파일을 열 수 없습니다 (${dir.path}): ${e.message}');
+  }
+}
 
-  final lineartBytes = await File('${dir.path}/lineart.png').readAsBytes();
-  final lineart = img.decodePng(lineartBytes);
-  if (lineart == null) {
-    throw const FormatException('lineart.png를 디코딩할 수 없습니다.');
+Future<String> _readText(Directory dir, String name) async {
+  try {
+    return await File('${dir.path}/$name').readAsString();
+  } on FileSystemException catch (e) {
+    throw FormatException('$name 파일을 열 수 없습니다 (${dir.path}): ${e.message}');
+  }
+}
+
+/// [dir]의 도안 패키지를 읽는다.
+///
+/// 어느 파일에서 실패했는지 한국어로 알려준다. 앱이 사용자에게 보여줄 안내를
+/// 고르려면 파일 단위로 원인을 구분할 수 있어야 한다.
+Future<DohanPackage> readDohanPackage(Directory dir) async {
+  final metaText = await _readText(dir, 'meta.json');
+  final DohanMeta meta;
+  try {
+    meta = DohanMeta.fromJson(jsonDecode(metaText) as Map<String, dynamic>);
+  } catch (e) {
+    throw FormatException('meta.json의 내용을 해석할 수 없습니다 (${dir.path}): $e');
   }
 
-  final regionBytes = await File('${dir.path}/regions.png').readAsBytes();
+  final lineartBytes = await _readBytes(dir, 'lineart.png');
+  final lineart = img.decodePng(lineartBytes);
+  if (lineart == null) {
+    throw FormatException('lineart.png를 디코딩할 수 없습니다 (${dir.path}).');
+  }
+
+  final regionBytes = await _readBytes(dir, 'regions.png');
 
   return DohanPackage(
     meta: meta,
@@ -2222,7 +2289,7 @@ export 'src/dohan_package.dart';
 cd packages/dohan_core && dart test test/index_map_test.dart test/dohan_package_test.dart
 ```
 
-Expected: PASS — 7개 테스트 통과
+Expected: PASS — 10개 테스트 통과 (index_map 3 + dohan_package 7)
 
 - [ ] **Step 7: 커밋**
 
@@ -2476,7 +2543,7 @@ export 'src/pipeline.dart';
 cd packages/dohan_core && dart test
 ```
 
-Expected: PASS — 패키지 전체 49개 테스트 통과
+Expected: PASS — 패키지 전체 52개 테스트 통과
 
 - [ ] **Step 5: 커밋**
 
@@ -2660,7 +2727,7 @@ export 'src/preview.dart';
 cd packages/dohan_core && dart test
 ```
 
-Expected: PASS — 패키지 전체 53개 테스트 통과
+Expected: PASS — 패키지 전체 56개 테스트 통과
 
 - [ ] **Step 5: 커밋**
 
