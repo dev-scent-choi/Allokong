@@ -169,5 +169,24 @@ void main() {
       expect(closed.isInk(3, 2), isFalse,
           reason: '내부는 여전히 칠할 수 있어야 한다');
     });
+
+    test('보정이 캔버스 여백에 없던 선을 만들지 않는다', () {
+      // 캔버스 가장자리에서 반지름만큼 떨어진 획. 팽창이 여백까지 자란 뒤
+      // 침식이 되돌리지 못하면, 원본에 없던 선이 테두리에 눌어붙는다.
+      final mask = maskFromRows([
+        '........',
+        '..####..',
+        '..####..',
+        '........',
+      ]);
+
+      final closed = closeLines(mask, radius: 1);
+
+      expect(closed.isInk(3, 0), isFalse,
+          reason: '위쪽 여백은 여백으로 남아야 한다');
+      expect(closed.isInk(3, 3), isFalse,
+          reason: '아래쪽 여백은 여백으로 남아야 한다');
+      expect(closed.isInk(3, 1), isTrue, reason: '원래 선은 남아야 한다');
+    });
   });
 }

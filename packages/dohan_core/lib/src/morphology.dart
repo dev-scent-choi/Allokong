@@ -115,14 +115,47 @@ BinaryMask erode(BinaryMask mask, int radius) => _sweep(
       takeMax: false,
     );
 
+/// 마스크 사방에 [radius]만큼 여백을 덧댄다.
+BinaryMask _padWithPaper(BinaryMask src, int radius) {
+  final w = src.width + radius * 2;
+  final h = src.height + radius * 2;
+  final out = BinaryMask.blank(w, h);
+  for (var y = 0; y < src.height; y++) {
+    for (var x = 0; x < src.width; x++) {
+      out.ink[(y + radius) * w + (x + radius)] = src.ink[y * src.width + x];
+    }
+  }
+  return out;
+}
+
+/// 덧댄 여백을 다시 잘라내 원래 크기로 되돌린다.
+BinaryMask _cropPadding(BinaryMask src, int radius, int width, int height) {
+  final out = BinaryMask.blank(width, height);
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      out.ink[y * width + x] = src.ink[(y + radius) * src.width + (x + radius)];
+    }
+  }
+  return out;
+}
+
 /// 닫기 연산(팽창 후 침식). 끊긴 선의 틈을 메우되 선 두께는 대체로 보존한다.
 ///
 /// [radius]를 주지 않으면 추정 선 두께의 절반을 쓴다. 이보다 크게 잡으면
 /// 가느다란 디테일이 서로 붙어버리고, 작게 잡으면 틈이 남아 색이 샌다.
 ///
 /// 최대 [radius]의 2배 너비까지 틈을 메울 수 있다.
+///
+/// 캔버스를 반지름만큼 여백으로 넓힌 뒤 팽창·침식하고 다시 잘라낸다. 팽창
+/// 결과가 캔버스 밖으로 자란 부분을 잘라버리면 침식이 잘린 면을 경계로
+/// 오인해, 테두리의 진짜 선을 깎거나(여백으로 볼 때) 없던 선을 여백에
+/// 눌어붙게 만든다(선으로 볼 때). 덧댄 뒤 잘라내면 두 경우가 모두 사라지고,
+/// 잘라낼 영역 안의 픽셀은 침식할 때 캔버스 밖을 참조하지 않으므로 _sweep의
+/// 경계 규칙과 무관해진다.
 BinaryMask closeLines(BinaryMask mask, {int? radius}) {
   final r = radius ?? (estimateLineWidth(mask) / 2).ceil().clamp(1, 8);
   if (r <= 0) return mask;
-  return erode(dilate(mask, r), r);
+  final padded = _padWithPaper(mask, r);
+  final closed = erode(dilate(padded, r), r);
+  return _cropPadding(closed, r, mask.width, mask.height);
 }
