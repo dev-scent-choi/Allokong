@@ -1,0 +1,14 @@
+name: dohan_core
+description: 선화 이미지를 칠할 수 있는 영역이 분리된 도안으로 변환하는 순수 Dart 라이브러리.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  image: ^4.2.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
