@@ -119,4 +119,48 @@ void main() {
       expect(text, contains('\n  "id"'));
     });
   });
+
+  group('읽기 실패', () {
+    test('파일이 없으면 어느 파일인지 한국어로 알려준다', () async {
+      await expectLater(
+        readDohanPackage(tmp),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('meta.json'), contains('열 수 없습니다')),
+        )),
+      );
+    });
+
+    test('meta.json 이 깨졌으면 해석 실패를 한국어로 알려준다', () async {
+      File('${tmp.path}/meta.json').writeAsStringSync('{ 이건 JSON이 아니다');
+
+      await expectLater(
+        readDohanPackage(tmp),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('해석할 수 없습니다'),
+        )),
+      );
+    });
+
+    test('lineart.png 가 없으면 그 파일을 지목한다', () async {
+      File('${tmp.path}/meta.json').writeAsStringSync(
+        '{"id":"x","title":"x","category":"animal","source":"bundled",'
+        '"canvasSize":[2,2],"regionCount":0,"difficulty":1,'
+        '"suggestedPalette":[],"regionCentroids":{},'
+        '"createdAt":"2026-09-21T00:00:00.000Z"}',
+      );
+
+      await expectLater(
+        readDohanPackage(tmp),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          contains('lineart.png'),
+        )),
+      );
+    });
+  });
 }

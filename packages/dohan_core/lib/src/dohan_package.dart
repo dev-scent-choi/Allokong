@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
@@ -105,6 +106,22 @@ Map<int, List<int>> computeRegionCentroids(RegionMap map) {
   };
 }
 
+Future<Uint8List> _readBytes(Directory dir, String name) async {
+  try {
+    return await File('${dir.path}/$name').readAsBytes();
+  } on FileSystemException catch (e) {
+    throw FormatException('$name 파일을 열 수 없습니다 (${dir.path}): ${e.message}');
+  }
+}
+
+Future<String> _readText(Directory dir, String name) async {
+  try {
+    return await File('${dir.path}/$name').readAsString();
+  } on FileSystemException catch (e) {
+    throw FormatException('$name 파일을 열 수 없습니다 (${dir.path}): ${e.message}');
+  }
+}
+
 /// 도안 패키지 세 파일을 [dir]에 쓴다.
 Future<void> writeDohanPackage({
   required Directory dir,
@@ -123,18 +140,25 @@ Future<void> writeDohanPackage({
 }
 
 /// [dir]의 도안 패키지를 읽는다.
+///
+/// 어느 파일에서 실패했는지 한국어로 알려준다. 앱이 사용자에게 보여줄 안내를
+/// 고르려면 파일 단위로 원인을 구분할 수 있어야 한다.
 Future<DohanPackage> readDohanPackage(Directory dir) async {
-  final metaText = await File('${dir.path}/meta.json').readAsString();
-  final meta =
-      DohanMeta.fromJson(jsonDecode(metaText) as Map<String, dynamic>);
-
-  final lineartBytes = await File('${dir.path}/lineart.png').readAsBytes();
-  final lineart = img.decodePng(lineartBytes);
-  if (lineart == null) {
-    throw const FormatException('lineart.png를 디코딩할 수 없습니다.');
+  final metaText = await _readText(dir, 'meta.json');
+  final DohanMeta meta;
+  try {
+    meta = DohanMeta.fromJson(jsonDecode(metaText) as Map<String, dynamic>);
+  } catch (e) {
+    throw FormatException('meta.json의 내용을 해석할 수 없습니다 (${dir.path}): $e');
   }
 
-  final regionBytes = await File('${dir.path}/regions.png').readAsBytes();
+  final lineartBytes = await _readBytes(dir, 'lineart.png');
+  final lineart = img.decodePng(lineartBytes);
+  if (lineart == null) {
+    throw FormatException('lineart.png를 디코딩할 수 없습니다 (${dir.path}).');
+  }
+
+  final regionBytes = await _readBytes(dir, 'regions.png');
 
   return DohanPackage(
     meta: meta,
