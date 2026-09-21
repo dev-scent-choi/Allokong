@@ -20,6 +20,19 @@ void main() {
     test('선이 없으면 1을 반환한다', () {
       expect(estimateLineWidth(maskFromRows(['....', '....'])), 1);
     });
+
+    test('길게 누운 획에서도 길이가 아니라 두께를 잰다', () {
+      final mask = maskFromRows([
+        '......................',
+        '.####################.',
+        '.####################.',
+        '.####################.',
+        '......................',
+      ]);
+
+      expect(estimateLineWidth(mask), 3,
+          reason: '길이 20, 두께 3인 획의 두께는 3이다');
+    });
   });
 
   group('dilate / erode', () {
@@ -119,6 +132,42 @@ void main() {
 
       expect(closed.isInk(4, 3), isFalse,
           reason: '도형 내부는 여백으로 남아야 칠할 수 있다');
+    });
+  });
+
+  group('경계 처리', () {
+    test('침식은 전부 선인 마스크를 그대로 둔다', () {
+      final mask = maskFromRows([
+        '#####',
+        '#####',
+        '#####',
+        '#####',
+        '#####',
+      ]);
+
+      expect(erode(mask, 1).inkCount, 25,
+          reason: '캔버스 밖을 여백으로 보면 테두리 한 겹이 깎여 나간다');
+    });
+
+    test('보정이 테두리에 닿은 선을 잘라내지 않는다', () {
+      // 캔버스 가장자리에 딱 붙은 테두리 도형. 침식이 캔버스 밖을 여백으로
+      // 보면 이 테두리가 지워지고, 안과 밖이 이어져 색이 새어나간다.
+      final mask = maskFromRows([
+        '#######',
+        '#.....#',
+        '#.....#',
+        '#.....#',
+        '#######',
+      ]);
+
+      final closed = closeLines(mask, radius: 1);
+
+      expect(closed.isInk(0, 0), isTrue);
+      expect(closed.isInk(3, 0), isTrue);
+      expect(closed.isInk(0, 2), isTrue);
+      expect(closed.isInk(6, 4), isTrue);
+      expect(closed.isInk(3, 2), isFalse,
+          reason: '내부는 여전히 칠할 수 있어야 한다');
     });
   });
 }

@@ -4,6 +4,9 @@ import 'package:dohan_core/dohan_core.dart';
 ///
 /// 이 헬퍼 덕분에 테스트에서 도안 모양을 눈으로 읽을 수 있다.
 BinaryMask maskFromRows(List<String> rows) {
+  if (rows.isEmpty) {
+    throw ArgumentError('행이 최소 하나는 있어야 합니다.');
+  }
   final h = rows.length;
   final w = rows.first.length;
   for (final row in rows) {
