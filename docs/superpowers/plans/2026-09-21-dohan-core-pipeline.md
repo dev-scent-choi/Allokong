@@ -1161,7 +1161,7 @@ RegionMap labelRegions(BinaryMask mask) {
     final id = remap.putIfAbsent(root, () {
       if (nextId > kMaxRegionId) {
         throw StateError(
-            '영역이 ${kMaxRegionId}개를 넘었습니다. 입력 선화가 너무 복잡하거나 '
+            '영역이 $kMaxRegionId개를 넘었습니다. 입력 선화가 너무 복잡하거나 '
             '노이즈가 많습니다.');
       }
       return nextId++;
