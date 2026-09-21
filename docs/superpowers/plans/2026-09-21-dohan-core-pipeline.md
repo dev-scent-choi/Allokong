@@ -2098,7 +2098,7 @@ git commit -m "feat(dohan_core): 인덱스맵 PNG와 도안 패키지 입출력"
 - Test: `packages/dohan_core/test/pipeline_test.dart`
 
 **Interfaces:**
-- Consumes: `binarize` (Task 2) · `closeLines` (Task 3) · `labelRegions` (Task 4) · `cleanupRegions` (Task 5) · `evaluateQuality`, `QualityThresholds` (Task 6) · `computeRegionCentroids` (Task 7)
+- Consumes: `binarize` (Task 2) · `closeLines` (Task 3) · `labelRegions` (Task 4) · `cleanupRegions` (Task 5) · `evaluateQuality`, `QualityThresholds` (Task 6)
 - Produces: `PipelineOptions` (필드 `binarizeWindow`, `binarizeOffset`, `closeRadius`, `minRegionArea`, `neighborSearchRadius`, `thresholds`) · `PipelineResult` (필드 `ink`, `regions`, `quality`) · `runPipeline(img.Image, {PipelineOptions options}) -> PipelineResult`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
