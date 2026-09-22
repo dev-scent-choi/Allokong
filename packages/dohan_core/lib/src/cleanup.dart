@@ -11,7 +11,10 @@ import 'types.dart';
 ///   반경 탐색을 쓴다 — 영역끼리는 선으로 갈라져 있어 서로 인접하지 않는다.
 /// - 흡수 대상이 배경뿐이면 그 파편은 배경이 된다.
 ///
-/// 파편이 사슬처럼 이어진 경우를 위해 안정될 때까지 최대 4회 반복한다.
+/// 흡수된 파편이 이웃을 기준 이상으로 키워 연쇄가 생길 수 있으므로 안정될
+/// 때까지 반복하되, 병적인 입력에서 멈추지 않는 일이 없도록 4회로 제한한다.
+/// 대개 첫 패스에서 끝난다 — 같은 패스 안에서 ids 를 바로 고치기 때문에
+/// 뒤 파편이 앞 파편의 결과를 이미 보고 판단한다.
 RegionMap cleanupRegions(
   RegionMap src, {
   required int minArea,
@@ -38,31 +41,43 @@ RegionMap cleanupRegions(
     }
   }
 
-  // 2) 작은 파편을 이웃에 흡수시킨다.
-  for (var pass = 0; pass < 4; pass++) {
-    final areas = <int, int>{};
-    for (final id in ids) {
-      if (id >= kRegionFirstFillable) areas[id] = (areas[id] ?? 0) + 1;
+  // 2) 영역별 픽셀 인덱스를 한 번에 모은다. 파편마다 전체 격자를 다시 훑으면
+  //    사진 질감처럼 파편이 수천 개 생긴 입력에서 초 단위로 느려진다.
+  final buckets = <int, List<int>>{};
+  for (var i = 0; i < ids.length; i++) {
+    final id = ids[i];
+    if (id >= kRegionFirstFillable) {
+      (buckets[id] ??= <int>[]).add(i);
     }
-    final tooSmall = areas.entries
-        .where((e) => e.value < minArea)
+  }
+
+  // 3) 작은 파편을 이웃에 흡수시킨다.
+  for (var pass = 0; pass < 4; pass++) {
+    final tooSmall = buckets.entries
+        .where((e) => e.value.length < minArea)
         .map((e) => e.key)
-        .toSet();
+        .toList();
     if (tooSmall.isEmpty) break;
 
     var changed = false;
     for (final victim in tooSmall) {
-      final target = _dominantNeighbor(ids, w, h, victim, searchRadius);
+      final pixels = buckets[victim];
+      if (pixels == null) continue; // 같은 패스에서 이미 흡수됐다
+      final target = _dominantNeighbor(ids, w, h, victim, searchRadius, pixels);
       if (target == victim) continue;
-      for (var i = 0; i < ids.length; i++) {
-        if (ids[i] == victim) ids[i] = target;
+      for (final i in pixels) {
+        ids[i] = target;
+      }
+      buckets.remove(victim);
+      if (target >= kRegionFirstFillable) {
+        (buckets[target] ??= <int>[]).addAll(pixels);
       }
       changed = true;
     }
     if (!changed) break;
   }
 
-  // 3) 남은 영역에 ID를 2부터 다시 부여한다.
+  // 4) 남은 영역에 ID를 2부터 다시 부여한다.
   final remap = <int, int>{};
   var nextId = kRegionFirstFillable;
   for (var i = 0; i < ids.length; i++) {
@@ -82,20 +97,20 @@ int _dominantNeighbor(
   int h,
   int victim,
   int radius,
+  List<int> pixels,
 ) {
   final votes = <int, int>{};
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      if (ids[y * w + x] != victim) continue;
-      for (var dy = -radius; dy <= radius; dy++) {
-        for (var dx = -radius; dx <= radius; dx++) {
-          final xx = x + dx;
-          final yy = y + dy;
-          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-          final other = ids[yy * w + xx];
-          if (other == victim || other == kRegionLine) continue;
-          votes[other] = (votes[other] ?? 0) + 1;
-        }
+  for (final i in pixels) {
+    final x = i % w;
+    final y = i ~/ w;
+    for (var dy = -radius; dy <= radius; dy++) {
+      for (var dx = -radius; dx <= radius; dx++) {
+        final xx = x + dx;
+        final yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        final other = ids[yy * w + xx];
+        if (other == victim || other == kRegionLine) continue;
+        votes[other] = (votes[other] ?? 0) + 1;
       }
     }
   }

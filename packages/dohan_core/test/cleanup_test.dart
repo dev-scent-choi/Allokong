@@ -85,5 +85,29 @@ void main() {
       expect(cleaned.fillableRegionCount, 0);
       expect(cleaned.at(0, 0), kRegionBackground);
     });
+
+    test('파편이 수천 개인 입력도 현실적인 시간 안에 끝난다', () {
+      // 사진 질감처럼 자잘한 파편이 잔뜩 생긴 격자. 파편마다 전체 격자를 훑으면
+      // 초 단위로 느려진다.
+      const w = 512;
+      const h = 512;
+      final map = RegionMap.filled(w, h, kRegionLine);
+      var id = kRegionFirstFillable;
+      for (var y = 1; y < h - 1; y += 3) {
+        for (var x = 1; x < w - 1; x += 3) {
+          map.set(x, y, id);
+          if (id < kMaxRegionId - 1) id++;
+        }
+      }
+
+      final sw = Stopwatch()..start();
+      final cleaned = cleanupRegions(map, minArea: 24);
+      sw.stop();
+
+      expect(cleaned.fillableRegionCount, 0,
+          reason: '1픽셀 파편은 모두 흡수된다');
+      expect(sw.elapsedMilliseconds, lessThan(4000),
+          reason: '512^2 에서 4초를 넘으면 1024^2 온디바이스 예산을 못 맞춘다');
+    });
   });
 }
