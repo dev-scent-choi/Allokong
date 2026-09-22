@@ -2969,6 +2969,24 @@ img.Image _inkToImage(BinaryMask mask) {
   return im;
 }
 
+int _requireInt(String name, String raw) {
+  final value = int.tryParse(raw);
+  if (value == null) {
+    throw FormatException('$name 값은 정수여야 합니다: "$raw"');
+  }
+  return value;
+}
+
+/// 파일 이름에서 마지막 확장자만 떼어 기본 ID 를 만든다.
+///
+/// 첫 번째 점에서 자르면 `cat.v2.final.png` 가 `cat` 이 되어, 버전이 다른
+/// 파일들이 같은 ID 로 뭉개진다.
+String defaultIdFor(File input) {
+  final name = input.uri.pathSegments.last;
+  final dot = name.lastIndexOf('.');
+  return dot > 0 ? name.substring(0, dot) : name;
+}
+
 /// 선화 파일 하나를 도안 패키지로 변환한다.
 ///
 /// 품질 게이트를 통과한 경우에만 [outDir]에 파일을 쓴다. 리젝트된 도안이
@@ -3070,8 +3088,7 @@ class _BuildCommand extends Command<int> {
     }
     final input = File(rest[0]);
     final outDir = Directory(rest[1]);
-    final id = (argResults!['id'] as String?) ??
-        input.uri.pathSegments.last.split('.').first;
+    final id = (argResults!['id'] as String?) ?? defaultIdFor(input);
     final title = (argResults!['title'] as String?) ?? id;
 
     final report = await buildDohan(
@@ -3080,8 +3097,10 @@ class _BuildCommand extends Command<int> {
       id: id,
       title: title,
       category: argResults!['category'] as String,
-      canvasSize: int.parse(argResults!['canvas-size'] as String),
-      difficulty: int.parse(argResults!['difficulty'] as String),
+      canvasSize:
+          _requireInt('--canvas-size', argResults!['canvas-size'] as String),
+      difficulty:
+          _requireInt('--difficulty', argResults!['difficulty'] as String),
     );
 
     stdout.writeln('$id: ${report.koreanSummary()}');
@@ -3108,11 +3127,32 @@ class _PreviewCommand extends Command<int> {
   }
 }
 
-Future<void> main(List<String> args) async {
+/// 인자를 파싱해 명령을 실행하고 종료 코드를 돌려준다.
+///
+/// main 과 테스트가 이 함수를 공유한다. 예외가 그대로 빠져나가면 종료 코드가
+/// 255 가 되고 영어 스택 트레이스가 찍혀, 배치 스크립트에서 원인을 알 수 없다.
+Future<int> runDohan(List<String> args) async {
   final runner = CommandRunner<int>('dohan', '도안 에셋 파이프라인 도구')
     ..addCommand(_BuildCommand())
     ..addCommand(_PreviewCommand());
-  exitCode = await runner.run(args) ?? 0;
+  try {
+    return await runner.run(args) ?? 0;
+  } on UsageException catch (e) {
+    stderr.writeln(e.message);
+    stderr.writeln();
+    stderr.writeln(e.usage);
+    return 64;
+  } on FormatException catch (e) {
+    stderr.writeln('입력을 처리할 수 없습니다: ${e.message}');
+    return 65;
+  } catch (e) {
+    stderr.writeln('실패했습니다: $e');
+    return 70;
+  }
+}
+
+Future<void> main(List<String> args) async {
+  exitCode = await runDohan(args);
 }
 ```
 
@@ -3122,7 +3162,7 @@ Future<void> main(List<String> args) async {
 cd tools/dohan_cli && dart test
 ```
 
-Expected: PASS — 4개 테스트 통과
+Expected: PASS — 11개 테스트 통과
 
 - [ ] **Step 6: CLI 수동 확인**
 
