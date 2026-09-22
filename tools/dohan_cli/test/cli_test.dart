@@ -138,15 +138,49 @@ void main() {
     expect(at2x.width, 256, reason: '@2x는 캔버스의 2배 해상도다');
   });
 
-  test('writePreview는 검수 이미지를 만든다', () async {
+  test('writePreview는 캔버스 크기로 정규화한 검수 이미지를 만든다', () async {
     final input = File('${tmp.path}/in.png')
       ..writeAsBytesSync(img.encodePng(_boxImage()));
     final out = File('${tmp.path}/preview.png');
 
-    await cli.writePreview(input: input, output: out);
+    await cli.writePreview(input: input, output: out, canvasSize: 256);
 
     expect(out.existsSync(), isTrue);
-    expect(img.decodePng(out.readAsBytesSync())!.width, 128);
+    expect(img.decodePng(out.readAsBytesSync())!.width, 256);
+  });
+
+  test('build 가 쓴 lineart.png 를 preview 가 그대로 읽는다', () async {
+    // lineart.png 는 투명 배경이다. 알파를 무시하면 빈 페이지가 나온다.
+    final input = File('${tmp.path}/src.png')
+      ..writeAsBytesSync(img.encodePng(_fourBoxesImage()));
+    final outDir = Directory('${tmp.path}/out');
+    final report = await cli.buildDohan(
+      input: input,
+      outDir: outDir,
+      id: 'rt',
+      title: 'rt',
+      category: 'animal',
+      canvasSize: 512,
+    );
+    expect(report.passed, isTrue, reason: report.koreanSummary());
+
+    final preview = File('${tmp.path}/check.png');
+    await cli.writePreview(
+      input: File('${outDir.path}/lineart.png'),
+      output: preview,
+      canvasSize: 512,
+    );
+
+    final im = img.decodePng(preview.readAsBytesSync())!;
+    final colours = <String>{};
+    for (var y = 0; y < im.height; y += 7) {
+      for (var x = 0; x < im.width; x += 7) {
+        final p = im.getPixel(x, y);
+        colours.add('${p.r}-${p.g}-${p.b}');
+      }
+    }
+    expect(colours.length, greaterThan(3),
+        reason: '빈 페이지가 아니라 영역별로 다른 색이 보여야 한다');
   });
 
   group('기본 ID', () {

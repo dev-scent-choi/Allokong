@@ -62,5 +62,22 @@ void main() {
       expect(mask.isInk(20, 32), isFalse,
           reason: '기울어진 배경 자체는 선이 아니다');
     });
+
+    test('투명한 배경은 흰 종이로 보고 선을 찾아낸다', () {
+      // 알파 0 인 배경 위에 불투명한 검은 막대. 알파를 무시하면 전부 검정으로
+      // 읽혀 선이 하나도 검출되지 않는다.
+      final im = img.Image(width: 64, height: 64, numChannels: 4);
+      img.fill(im, color: img.ColorRgba8(0, 0, 0, 0));
+      for (var y = 0; y < 64; y++) {
+        for (var x = 30; x < 34; x++) {
+          im.setPixelRgba(x, y, 0, 0, 0, 255);
+        }
+      }
+
+      final mask = binarize(im);
+
+      expect(mask.isInk(31, 10), isTrue, reason: '막대는 선이어야 한다');
+      expect(mask.isInk(5, 10), isFalse, reason: '투명한 배경은 여백이다');
+    });
   });
 }

@@ -5,12 +5,20 @@ import 'package:image/image.dart' as img;
 import 'types.dart';
 
 /// 이미지를 8bit 그레이스케일 격자로 변환한다.
+///
+/// 투명한 픽셀은 흰 종이 위에 올린 것으로 본다. 알파를 무시하면 투명 배경
+/// 선화가 전부 검정으로 읽혀 선이 하나도 검출되지 않는다 — 이 파이프라인이
+/// 스스로 쓰는 lineart.png 가 바로 그 형식이다.
 Uint8List toGrayscale(img.Image src) {
   final out = Uint8List(src.width * src.height);
   var i = 0;
   for (var y = 0; y < src.height; y++) {
     for (var x = 0; x < src.width; x++) {
-      out[i++] = img.getLuminance(src.getPixel(x, y)).round().clamp(0, 255);
+      final p = src.getPixel(x, y);
+      final a = p.a / p.maxChannelValue;
+      final luminance = img.getLuminance(p).toDouble();
+      // 흰 종이(255) 위에 알파만큼 합성한다.
+      out[i++] = (luminance * a + 255 * (1 - a)).round().clamp(0, 255);
     }
   }
   return out;

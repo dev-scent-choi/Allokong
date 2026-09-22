@@ -100,15 +100,20 @@ Future<QualityReport> buildDohan({
 }
 
 /// 영역 분리 상태를 눈으로 확인할 검수 이미지를 쓴다.
+///
+/// buildDohan 과 똑같이 정사각 캔버스로 정규화한 뒤 파이프라인을 돌린다.
+/// 원본 해상도로 돌리면 binarize 의 창(31px)과 closeLines 의 반지름 상한(8)이
+/// 상대적으로 달라져, 검수 이미지가 실제로 만들어질 도안과 다른 것을 보여준다.
 Future<void> writePreview({
   required File input,
   required File output,
+  int canvasSize = 1024,
 }) async {
   final source = img.decodeImage(await input.readAsBytes());
   if (source == null) {
     throw FormatException('이미지를 읽을 수 없습니다: ${input.path}');
   }
-  final result = runPipeline(source);
+  final result = runPipeline(_fitToCanvas(source, canvasSize));
   await output.writeAsBytes(
     img.encodePng(renderRegionPreview(result.regions), level: 9),
   );
@@ -184,6 +189,11 @@ class _PreviewCommand extends Command<int> {
   @override
   final description = '영역 분리 상태를 색으로 보여주는 검수 이미지를 만듭니다.';
 
+  _PreviewCommand() {
+    argParser.addOption('canvas-size',
+        defaultsTo: '1024', help: '정사각 캔버스 한 변의 픽셀 수.');
+  }
+
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
@@ -191,7 +201,12 @@ class _PreviewCommand extends Command<int> {
       stderr.writeln('사용법: dohan preview <입력.png> <출력.png>');
       return 64;
     }
-    await writePreview(input: File(rest[0]), output: File(rest[1]));
+    await writePreview(
+      input: File(rest[0]),
+      output: File(rest[1]),
+      canvasSize:
+          _requireInt('--canvas-size', argResults!['canvas-size'] as String),
+    );
     stdout.writeln('검수 이미지를 썼습니다: ${rest[1]}');
     return 0;
   }
