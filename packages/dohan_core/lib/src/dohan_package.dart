@@ -23,8 +23,8 @@ class DohanMeta {
   final int difficulty;
   final List<String> suggestedPalette;
 
-  /// 영역 ID → [x, y] 중심 좌표. 미완성 영역 힌트 표시에 쓴다.
-  final Map<int, List<int>> regionCentroids;
+  /// 영역 ID → [x, y]. 각 영역 안에서 내접원이 가장 큰 지점이다. 미완성 영역 힌트 표시에 쓴다.
+  final Map<int, List<int>> regionAnchors;
 
   final DateTime createdAt;
 
@@ -37,7 +37,7 @@ class DohanMeta {
     required this.regionCount,
     required this.difficulty,
     required this.suggestedPalette,
-    required this.regionCentroids,
+    required this.regionAnchors,
     required this.createdAt,
   });
 
@@ -50,8 +50,8 @@ class DohanMeta {
         'regionCount': regionCount,
         'difficulty': difficulty,
         'suggestedPalette': suggestedPalette,
-        'regionCentroids': {
-          for (final e in regionCentroids.entries) e.key.toString(): e.value
+        'regionAnchors': {
+          for (final e in regionAnchors.entries) e.key.toString(): e.value
         },
         'createdAt': createdAt.toUtc().toIso8601String(),
       };
@@ -65,8 +65,8 @@ class DohanMeta {
         regionCount: json['regionCount'] as int,
         difficulty: json['difficulty'] as int,
         suggestedPalette: (json['suggestedPalette'] as List).cast<String>(),
-        regionCentroids: {
-          for (final e in (json['regionCentroids'] as Map).entries)
+        regionAnchors: {
+          for (final e in (json['regionAnchors'] as Map).entries)
             int.parse(e.key as String): (e.value as List).cast<int>()
         },
         createdAt: DateTime.parse(json['createdAt'] as String),
@@ -84,26 +84,6 @@ class DohanPackage {
     required this.lineart,
     required this.regions,
   });
-}
-
-/// 칠할 수 있는 영역별 픽셀 중심 좌표를 구한다.
-Map<int, List<int>> computeRegionCentroids(RegionMap map) {
-  final sumX = <int, int>{};
-  final sumY = <int, int>{};
-  final count = <int, int>{};
-  for (var y = 0; y < map.height; y++) {
-    for (var x = 0; x < map.width; x++) {
-      final id = map.at(x, y);
-      if (id < kRegionFirstFillable) continue;
-      sumX[id] = (sumX[id] ?? 0) + x;
-      sumY[id] = (sumY[id] ?? 0) + y;
-      count[id] = (count[id] ?? 0) + 1;
-    }
-  }
-  return {
-    for (final id in count.keys)
-      id: [sumX[id]! ~/ count[id]!, sumY[id]! ~/ count[id]!]
-  };
 }
 
 Future<Uint8List> _readBytes(Directory dir, String name) async {

@@ -84,7 +84,7 @@ void main() {
     expect(pkg.meta.title, '네모');
     expect(pkg.meta.source, 'bundled');
     expect(pkg.meta.regionCount, 1);
-    expect(pkg.meta.regionCentroids.length, 1);
+    expect(pkg.meta.regionAnchors.length, 1);
   });
 
   test('품질 게이트에 걸리면 패키지를 쓰지 않는다', () async {

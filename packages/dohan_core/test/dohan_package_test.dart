@@ -10,18 +10,40 @@ void main() {
   setUp(() => tmp = Directory.systemTemp.createTempSync('dohan_pkg_'));
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  group('computeRegionCentroids', () {
-    test('영역별 중심 좌표를 계산한다', () {
+  group('computeRegionAnchors', () {
+    test('앵커는 언제나 자기 영역 안에 있다', () {
       final map = RegionMap.filled(6, 2, kRegionBackground);
       map.set(0, 0, 2);
       map.set(2, 0, 2);
       map.set(4, 1, 3);
 
-      final centroids = computeRegionCentroids(map);
+      final anchors = computeRegionAnchors(map);
 
-      expect(centroids[2], [1, 0]);
-      expect(centroids[3], [4, 1]);
-      expect(centroids.containsKey(kRegionBackground), isFalse);
+      for (final entry in anchors.entries) {
+        final id = entry.key;
+        final xy = entry.value;
+        expect(map.at(xy[0], xy[1]), id,
+            reason: '영역 $id 의 앵커 $xy 가 자기 영역 밖이다');
+      }
+      expect(anchors.keys.toSet(), {2, 3});
+      expect(anchors.containsKey(kRegionBackground), isFalse);
+    });
+
+    test('고리 모양에서도 앵커가 구멍이 아니라 고리 위에 있다', () {
+      // 가운데가 뚫린 5x5 고리. 무게중심은 정확히 구멍 한가운데로 떨어진다.
+      final map = RegionMap.filled(5, 5, kRegionLine);
+      for (var y = 0; y < 5; y++) {
+        for (var x = 0; x < 5; x++) {
+          final onRing = x == 0 || y == 0 || x == 4 || y == 4;
+          map.set(x, y, onRing ? 2 : kRegionLine);
+        }
+      }
+
+      final anchor = computeRegionAnchors(map)[2]!;
+
+      expect(map.at(anchor[0], anchor[1]), 2,
+          reason: '앵커가 고리 위에 있어야 한다');
+      expect(anchor, isNot([2, 2]), reason: '무게중심은 구멍 한가운데다');
     });
   });
 
@@ -36,7 +58,7 @@ void main() {
         regionCount: 23,
         difficulty: 2,
         suggestedPalette: ['#63b98b', '#f1bd45'],
-        regionCentroids: {2: [412, 330]},
+        regionAnchors: {2: [412, 330]},
         createdAt: DateTime.utc(2026, 9, 21),
       );
 
@@ -48,7 +70,7 @@ void main() {
       expect(restored.canvasSize, meta.canvasSize);
       expect(restored.regionCount, 23);
       expect(restored.suggestedPalette, ['#63b98b', '#f1bd45']);
-      expect(restored.regionCentroids[2], [412, 330]);
+      expect(restored.regionAnchors[2], [412, 330]);
       expect(restored.createdAt, meta.createdAt);
     });
   });
@@ -69,7 +91,7 @@ void main() {
         regionCount: 1,
         difficulty: 1,
         suggestedPalette: ['#ef7586'],
-        regionCentroids: computeRegionCentroids(regions),
+        regionAnchors: computeRegionAnchors(regions),
         createdAt: DateTime.utc(2026, 9, 21),
       );
 
@@ -109,7 +131,7 @@ void main() {
           regionCount: 0,
           difficulty: 1,
           suggestedPalette: const [],
-          regionCentroids: const {},
+          regionAnchors: const {},
           createdAt: DateTime.utc(2026, 9, 21),
         ),
       );
@@ -149,7 +171,7 @@ void main() {
       File('${tmp.path}/meta.json').writeAsStringSync(
         '{"id":"x","title":"x","category":"animal","source":"bundled",'
         '"canvasSize":[2,2],"regionCount":0,"difficulty":1,'
-        '"suggestedPalette":[],"regionCentroids":{},'
+        '"suggestedPalette":[],"regionAnchors":{},'
         '"createdAt":"2026-09-21T00:00:00.000Z"}',
       );
 

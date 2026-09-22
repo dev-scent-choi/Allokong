@@ -1,6 +1,4 @@
-import 'dart:collection';
-import 'dart:typed_data';
-
+import 'distance_field.dart';
 import 'types.dart';
 
 /// 도안이 아이에게 쓸 만한지 판정할 때 걸리는 항목.
@@ -88,7 +86,7 @@ QualityReport evaluateQuality(
   final total = map.width * map.height;
   final regionCount = map.fillableRegionCount;
   final backgroundRatio = (areas[kRegionBackground] ?? 0) / total;
-  final smallest = _smallestInscribedDiameter(map);
+  final smallest = smallestInscribedDiameter(map);
 
   final issues = <QualityIssue>[];
   if (regionCount < thresholds.minRegions) {
@@ -110,80 +108,4 @@ QualityReport evaluateQuality(
     smallestTapDiameter: smallest,
     issues: issues,
   );
-}
-
-/// 칠할 수 있는 영역들의 내접원 지름 중 가장 작은 값.
-///
-/// 영역 경계에서 시작하는 8방 BFS로 체비셰프 거리 변환을 구한다. 체비셰프
-/// 거리의 최대값은 내접 정사각형의 반지름이므로, 지름은 그 2배 + 1이다.
-/// 원이 아니라 정사각형이지만 판정 목적에는 충분하다.
-///
-/// 외접원이 아니라 내접원을 쓰는 이유는, 가늘고 긴 영역은 외접원이 커도
-/// 손가락으로 누를 수 없기 때문이다.
-int _smallestInscribedDiameter(RegionMap map) {
-  final w = map.width;
-  final h = map.height;
-  final dist = Int32List(w * h)..fillRange(0, w * h, -1);
-  final queue = Queue<int>();
-
-  // 자기 영역이 아닌 이웃을 가졌거나 캔버스 경계에 있는 픽셀이 거리 0이다.
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      final i = y * w + x;
-      final id = map.ids[i];
-      if (id < kRegionFirstFillable) continue;
-      var isEdge = x == 0 || y == 0 || x == w - 1 || y == h - 1;
-      if (!isEdge) {
-        outer:
-        for (var dy = -1; dy <= 1; dy++) {
-          for (var dx = -1; dx <= 1; dx++) {
-            if (map.ids[(y + dy) * w + (x + dx)] != id) {
-              isEdge = true;
-              break outer;
-            }
-          }
-        }
-      }
-      if (isEdge) {
-        dist[i] = 0;
-        queue.add(i);
-      }
-    }
-  }
-
-  while (queue.isNotEmpty) {
-    final i = queue.removeFirst();
-    final x = i % w;
-    final y = i ~/ w;
-    final id = map.ids[i];
-    for (var dy = -1; dy <= 1; dy++) {
-      for (var dx = -1; dx <= 1; dx++) {
-        if (dx == 0 && dy == 0) continue;
-        final xx = x + dx;
-        final yy = y + dy;
-        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-        final j = yy * w + xx;
-        if (map.ids[j] != id) continue;
-        if (dist[j] != -1) continue;
-        dist[j] = dist[i] + 1;
-        queue.add(j);
-      }
-    }
-  }
-
-  final maxPerRegion = <int, int>{};
-  for (var i = 0; i < w * h; i++) {
-    final id = map.ids[i];
-    if (id < kRegionFirstFillable) continue;
-    final d = dist[i];
-    if (d > (maxPerRegion[id] ?? -1)) maxPerRegion[id] = d;
-  }
-  if (maxPerRegion.isEmpty) return 0;
-
-  var smallest = 1 << 30;
-  for (final radius in maxPerRegion.values) {
-    final diameter = radius * 2 + 1;
-    if (diameter < smallest) smallest = diameter;
-  }
-  return smallest;
 }

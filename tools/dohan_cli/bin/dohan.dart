@@ -84,7 +84,7 @@ Future<QualityReport> buildDohan({
       regionCount: result.regions.fillableRegionCount,
       difficulty: difficulty,
       suggestedPalette: suggestedPalette,
-      regionCentroids: computeRegionCentroids(result.regions),
+      regionAnchors: computeRegionAnchors(result.regions),
       createdAt: DateTime.now().toUtc(),
     ),
   );
