@@ -70,7 +70,9 @@ class QualityReport {
               '손가락으로 누르기 어렵습니다';
       }
     });
-    return '리젝트 — ${reasons.join(' / ')}';
+    return '리젝트 — ${reasons.join(' / ')} '
+        '(영역 $regionCount개, 배경 ${(backgroundRatio * 100).toStringAsFixed(1)}%, '
+        '최소 영역 지름 ${smallestTapDiameter}px)';
   }
 }
 

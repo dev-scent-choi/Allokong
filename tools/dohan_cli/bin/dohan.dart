@@ -55,6 +55,8 @@ Future<QualityReport> buildDohan({
   int difficulty = 1,
   List<String> suggestedPalette = const ['#ef7586', '#f1bd45', '#6caee0'],
   QualityThresholds thresholds = const QualityThresholds(),
+  int minRegionArea = 24,
+  int? closeRadius,
 }) async {
   final source = img.decodeImage(await input.readAsBytes());
   if (source == null) {
@@ -64,7 +66,11 @@ Future<QualityReport> buildDohan({
   final fitted = _fitToCanvas(source, canvasSize);
   final result = runPipeline(
     fitted,
-    options: PipelineOptions(thresholds: thresholds),
+    options: PipelineOptions(
+      thresholds: thresholds,
+      minRegionArea: minRegionArea,
+      closeRadius: closeRadius,
+    ),
   );
   if (!result.quality.passed) return result.quality;
 
@@ -153,7 +159,13 @@ class _BuildCommand extends Command<int> {
           help: '도안 카테고리.')
       ..addOption('difficulty', defaultsTo: '1', help: '난이도 1~3.')
       ..addOption('canvas-size',
-          defaultsTo: '1024', help: '정사각 캔버스 한 변의 픽셀 수.');
+          defaultsTo: '1024', help: '정사각 캔버스 한 변의 픽셀 수.')
+      ..addOption('min-tap-diameter',
+          defaultsTo: '72', help: '손가락으로 누를 수 있는 최소 영역 지름(px).')
+      ..addOption('min-region-area',
+          defaultsTo: '24', help: '이보다 작은 영역은 이웃에 흡수한다(px).')
+      ..addOption('close-radius',
+          help: '선 끊김 보정 반지름. 생략하면 선 두께에서 추정한다.');
   }
 
   @override
@@ -167,6 +179,7 @@ class _BuildCommand extends Command<int> {
     final outDir = Directory(rest[1]);
     final id = (argResults!['id'] as String?) ?? defaultIdFor(input);
     final title = (argResults!['title'] as String?) ?? id;
+    final closeRadiusRaw = argResults!['close-radius'] as String?;
 
     final report = await buildDohan(
       input: input,
@@ -176,6 +189,15 @@ class _BuildCommand extends Command<int> {
       category: argResults!['category'] as String,
       canvasSize: _requireInt('--canvas-size', argResults!['canvas-size'] as String),
       difficulty: _requireInt('--difficulty', argResults!['difficulty'] as String),
+      thresholds: QualityThresholds(
+        minTapDiameterPx: _requireInt(
+            '--min-tap-diameter', argResults!['min-tap-diameter'] as String),
+      ),
+      minRegionArea: _requireInt(
+          '--min-region-area', argResults!['min-region-area'] as String),
+      closeRadius: closeRadiusRaw == null
+          ? null
+          : _requireInt('--close-radius', closeRadiusRaw),
     );
 
     stdout.writeln('$id: ${report.koreanSummary()}');

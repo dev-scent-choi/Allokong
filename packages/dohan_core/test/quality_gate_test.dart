@@ -105,5 +105,23 @@ void main() {
       expect(report.koreanSummary(), contains('영역'));
       expect(report.koreanSummary(), isNot(contains('null')));
     });
+
+    test('리젝트 요약에도 계측값 세 가지가 함께 담긴다', () {
+      final report = evaluateQuality(_roomsMap(count: 2));
+
+      final summary = report.koreanSummary();
+      expect(summary, contains('리젝트'));
+      expect(summary, contains('영역 ${report.regionCount}개'));
+      expect(
+        summary,
+        contains(
+          '배경 ${(report.backgroundRatio * 100).toStringAsFixed(1)}%',
+        ),
+      );
+      expect(
+        summary,
+        contains('최소 영역 지름 ${report.smallestTapDiameter}px'),
+      );
+    });
   });
 }
