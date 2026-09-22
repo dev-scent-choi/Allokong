@@ -39,7 +39,6 @@ void main() {
   const lenient = QualityThresholds(
     minRegions: 1,
     maxRegions: 120,
-    minBackgroundRatio: 0.0,
     minTapDiameterPx: 4,
   );
 

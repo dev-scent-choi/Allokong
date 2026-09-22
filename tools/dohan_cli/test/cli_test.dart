@@ -69,7 +69,6 @@ void main() {
       category: 'animal',
       thresholds: const QualityThresholds(
         minRegions: 1,
-        minBackgroundRatio: 0.0,
         minTapDiameterPx: 4,
       ),
     );
@@ -122,7 +121,6 @@ void main() {
       canvasSize: 128,
       thresholds: const QualityThresholds(
         minRegions: 1,
-        minBackgroundRatio: 0.0,
         minTapDiameterPx: 4,
       ),
     );
@@ -255,7 +253,6 @@ void main() {
       canvasSize: 256,
       thresholds: const QualityThresholds(
         minRegions: 1,
-        minBackgroundRatio: 0.0,
         minTapDiameterPx: 4,
       ),
     );

@@ -51,25 +51,10 @@ void main() {
       expect(report.issues, contains(QualityIssue.tooManyRegions));
     });
 
-    test('배경이 캔버스의 60% 미만이면 선이 샌다고 본다', () {
-      // 선이 없는 맵. cleanupRegions가 전부 배경으로 만들면 배경 비율은 1.0.
-      // 반대로 배경이 거의 없는 맵을 만들어 판정을 확인한다.
-      final map = RegionMap.filled(10, 10, kRegionFirstFillable);
-      for (var x = 0; x < 10; x++) {
-        map.set(x, 0, kRegionBackground);
-      }
-
-      final report = evaluateQuality(map);
-
-      expect(report.backgroundRatio, closeTo(0.10, 0.001));
-      expect(report.issues, contains(QualityIssue.backgroundTooSmall));
-    });
-
     test('손가락으로 누를 수 없는 영역이 있으면 표시한다', () {
       final report = evaluateQuality(
         _roomsMap(count: 5, inner: 4),
         thresholds: const QualityThresholds(
-          minBackgroundRatio: 0.0,
           minTapDiameterPx: 20,
         ),
       );
@@ -82,7 +67,6 @@ void main() {
       final report = evaluateQuality(
         _roomsMap(count: 5, inner: 10),
         thresholds: const QualityThresholds(
-          minBackgroundRatio: 0.0,
           minTapDiameterPx: 4,
         ),
       );
@@ -90,6 +74,29 @@ void main() {
       expect(report.issues, isEmpty);
       expect(report.passed, isTrue);
       expect(report.regionCount, 5);
+    });
+
+    test('배경이 0%여도 판정에 쓰이지 않는다', () {
+      // 선이 캔버스 가장자리까지 닿는 도안. 배경이 한 픽셀도 없지만
+      // 영역 분리는 완벽하다.
+      final map = RegionMap.filled(40, 10, kRegionLine);
+      for (var k = 0; k < 4; k++) {
+        for (var y = 1; y <= 8; y++) {
+          for (var x = k * 10 + 1; x <= k * 10 + 8; x++) {
+            map.set(x, y, kRegionFirstFillable + k);
+          }
+        }
+      }
+
+      final report = evaluateQuality(
+        map,
+        thresholds: const QualityThresholds(minTapDiameterPx: 4),
+      );
+
+      expect(report.backgroundRatio, 0.0);
+      expect(report.regionCount, 4);
+      expect(report.passed, isTrue,
+          reason: '배경 비율은 계측값일 뿐 판정 근거가 아니다');
     });
 
     test('한국어 요약에 실패 사유가 담긴다', () {
