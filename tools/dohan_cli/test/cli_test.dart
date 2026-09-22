@@ -24,6 +24,32 @@ img.Image _boxImage({int size = 128, int inset = 24, int stroke = 3}) {
   return im;
 }
 
+/// 떨어져 있는 정사각형 네 개. 기본 품질 게이트를 통과하는 픽스처다.
+///
+/// 동심원으로 겹쳐 그리면 배경이 바깥 테두리 한 겹뿐이라 60% 기준을 못 넘고,
+/// 고리 폭도 72px 터치 기준에 못 미친다. 네 개를 떼어 놓으면 배경이 캔버스
+/// 대부분을 차지하면서 각 내부가 100px 폭을 갖는다.
+/// 측정값: 영역 4개, 배경 82.9%, 최소 지름 99px.
+img.Image _fourBoxesImage({int size = 512}) {
+  final im = img.Image(width: size, height: size, numChannels: 4);
+  img.fill(im, color: img.ColorRgba8(255, 255, 255, 255));
+  const side = 106;
+  const hi = side - 1;
+  for (final oy in [60, 300]) {
+    for (final ox in [60, 300]) {
+      for (var t = 0; t < 3; t++) {
+        for (var d = 0; d <= hi; d++) {
+          im.setPixelRgba(ox + d, oy + t, 0, 0, 0, 255);
+          im.setPixelRgba(ox + d, oy + hi - t, 0, 0, 0, 255);
+          im.setPixelRgba(ox + t, oy + d, 0, 0, 0, 255);
+          im.setPixelRgba(ox + hi - t, oy + d, 0, 0, 0, 255);
+        }
+      }
+    }
+  }
+  return im;
+}
+
 void main() {
   late Directory tmp;
 
@@ -130,6 +156,8 @@ void main() {
       expect(cli.defaultIdFor(File('/tmp/cat.v2.final.png')), 'cat.v2.final');
       expect(cli.defaultIdFor(File('/tmp/cat.png')), 'cat');
       expect(cli.defaultIdFor(File('/tmp/noext')), 'noext');
+      expect(cli.defaultIdFor(File('/tmp/.gitkeep')), '.gitkeep',
+          reason: '점으로 시작하는 이름은 확장자가 아니라 이름 전체다');
     });
   });
 
@@ -170,6 +198,32 @@ void main() {
 
       expect(code, 1);
       expect(Directory('${tmp.path}/out').existsSync(), isFalse);
+    });
+
+    test('정상 빌드는 0 을 돌려주고 파일 이름에서 ID 를 채운다', () async {
+      // 파일 이름에 점이 여럿 — 명령 계층이 확장자만 떼는지 함께 확인한다.
+      final input = File('${tmp.path}/cat.v2.final.png')
+        ..writeAsBytesSync(img.encodePng(_fourBoxesImage()));
+      final outDir = Directory('${tmp.path}/out');
+
+      final code = await cli.runDohan([
+        'build',
+        input.path,
+        outDir.path,
+        '--canvas-size=512',
+        '--category=animal',
+      ]);
+
+      expect(code, 0, reason: '품질 게이트를 통과한 빌드는 0 이어야 한다');
+
+      final pkg = await readDohanPackage(outDir);
+      expect(pkg.meta.id, 'cat.v2.final',
+          reason: '기본 ID 는 마지막 확장자만 떼야 한다');
+      expect(pkg.meta.title, 'cat.v2.final',
+          reason: '--title 을 주지 않으면 ID 를 쓴다');
+      expect(pkg.meta.category, 'animal');
+      expect(pkg.meta.canvasSize, [512, 512]);
+      expect(File('${outDir.path}/lineart@2x.png').existsSync(), isTrue);
     });
   });
 
