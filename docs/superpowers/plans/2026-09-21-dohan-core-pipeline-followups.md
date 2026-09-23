@@ -21,7 +21,7 @@ dart run bin/dohan.dart build <선화.png> <출력디렉터리> \
 
 거부되든 통과하든 측정값(영역 수 · 배경 비율 · 최소 영역 지름)이 출력되므로, 10장을 쓸어 담으면 캘리브레이션 표가 나온다.
 
-**시작하기 전에 5줄짜리 선행 작업이 하나 있다.** `_requireInt` 옆에 `_requirePositiveInt`를 만들어 `--min-tap-diameter`와 `--min-region-area`에 쓴다. 지금은 음수·0을 조용히 받아 해당 게이트를 무력화하므로, 오타 난 음수가 "통과"로 보인다 — 캘리브레이션 표를 오염시킬 수 있는 유일한 함정이다.
+~~시작하기 전에 5줄짜리 선행 작업이 하나 있다.~~ **해결됨 (`430c992`)** — `_requireIntInRange`가 모든 정수 옵션의 범위를 본다. 음수·0·범위 밖 난이도는 한국어 메시지와 함께 종료 코드 65로 거부된다.
 
 ### 특히 확인할 것
 
@@ -33,17 +33,32 @@ dart run bin/dohan.dart build <선화.png> <출력디렉터리> \
 
 ## 2. 계획 2가 시작 전에 해결해야 하는 것
 
-### 2.1 `_fitToCanvas`와 `_inkToImage`가 `dohan_core` 밖에 있다
+### 2.1 ~~`_fitToCanvas`와 `_inkToImage`가 `dohan_core` 밖에 있다~~ — 해결됨 (`430c992`)
+
+`packages/dohan_core/lib/src/canvas.dart`의 공개 `fitToCanvas` / `inkToImage`로 옮겼다. 세로 레터박싱(`dstY`) 테스트도 함께 추가해 이월 항목 하나를 닫았다.
+
+<details><summary>원래 기록</summary>
 
 `tools/dohan_cli/bin/dohan.dart`의 private 함수다. 스펙 6장의 제목은 "파이프라인 — 한 벌만 구현한다"이고 8장은 앱이 `dohan_core`를 그대로 호출한다고 적혀 있는데, 현재 구조대로면 **계획 2가 이 둘을 재구현해야 한다.** 그리고 재구현이 어긋나면 정확히 누수가 되살아나는 지점이다 — 계획 1 안에서 이미 한 번 일어났다(아래 2.2).
 
 둘 다 `dart:ui`를 건드리지 않으므로 `dohan_core`로 옮기는 데 장애물이 없다. 계획 2의 첫 태스크로 옮길 것.
+</details>
 
-### 2.2 `dohan_core`가 `dart:io`를 공개 배럴로 내보낸다
+### 2.2 ~~`dohan_core`가 `dart:io`를 공개 배럴로 내보낸다~~ — 해결됨 (`430c992`)
+
+`dart:io`를 쓰는 `writeDohanPackage` / `readDohanPackage`를 `dohan_core_io.dart`로 분리했고, 본 배럴에는 `dart:io` 의존이 없다. 앱은 `DohanPackage.fromBytes({metaJson, lineartPng, regionsPng, label})`로 에셋 바이트에서 바로 도안을 만든다.
+
+```dart
+import 'package:dohan_core/dohan_core.dart';        // 앱은 이것만
+import 'package:dohan_core/dohan_core_io.dart';     // CLI·테스트만
+```
+
+<details><summary>원래 기록</summary>
 
 `lib/src/dohan_package.dart`가 `dart:io`를 import하고 배럴이 그것을 export한다. `readDohanPackage(Directory)`는 안드로이드에서 Flutter 에셋으로 실린 내장 도안을 읽을 수 없다 — 에셋은 `File`이 아니다.
 
 `DohanMeta.fromJson`과 `decodeIndexMapPng`이 공개되어 있어 앱이 바이트 로더를 조립할 수는 있다. 다만 `dohan_core/io.dart`로 분리하고 `DohanPackage.fromBytes`를 추가하는 편이 낫다.
+</details>
 
 ### 2.3 터치 지름이 스펙과 다르게 하드 리젝트다
 
@@ -92,12 +107,10 @@ dart run bin/dohan.dart build <선화.png> <출력디렉터리> \
 - 3단 이상 연쇄 병합, "선으로만 둘러싸인 파편" 폴백 경로
 - `koreanSummary()`의 통과 분기가 실행은 되나 단언되지 않음
 - 1024² 인덱스맵 왕복 테스트가 width/height를 단언하지 않음
-- `_fitToCanvas`의 세로 레터박싱(`dstY`)이 미검증 — 가로만 덮임
 
 **기타**
 - `readDohanPackage`가 `e.message`만 감싸 `osError`를 잃음 (파일 없음 vs 권한 없음 구분 불가)
 - `_boxImage` 테스트 헬퍼가 두 패키지에 중복됐고 이미 발산함 (core 쪽만 `gapWidth` 지원)
-- `--difficulty`가 범위 검증 없음
 - `generate.py`의 `provider` 바인딩이 `choices` 덕분에만 전수적 — provider 추가 시 `UnboundLocalError`
 - `providers.py`와 `generate.py`에 테스트 없음
 
