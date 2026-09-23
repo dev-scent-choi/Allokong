@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dohan_core/dohan_core.dart';
+import 'package:dohan_core/dohan_core_io.dart';
 import 'package:image/image.dart' as img;
 import 'package:test/test.dart';
 
@@ -139,6 +142,54 @@ void main() {
       final text = File('${tmp.path}/meta.json').readAsStringSync();
 
       expect(text, contains('\n  "id"'));
+    });
+  });
+
+  group('DohanPackage.fromBytes', () {
+    test('디스크를 거치지 않고 바이트에서 도안을 만든다', () async {
+      // Flutter 에셋으로 실린 내장 도안은 File 이 아니라 바이트로 온다.
+      final lineart = img.Image(width: 8, height: 8, numChannels: 4);
+      final regions = RegionMap.filled(8, 8, kRegionBackground);
+      regions.set(3, 3, 2);
+      final meta = DohanMeta(
+        id: 'asset-01',
+        title: '에셋 도안',
+        category: 'animal',
+        source: 'bundled',
+        canvasSize: [8, 8],
+        regionCount: 1,
+        difficulty: 1,
+        suggestedPalette: const ['#ef7586'],
+        regionAnchors: computeRegionAnchors(regions),
+        createdAt: DateTime.utc(2026, 9, 23),
+      );
+
+      final pkg = DohanPackage.fromBytes(
+        metaJson: jsonEncode(meta.toJson()),
+        lineartPng: Uint8List.fromList(img.encodePng(lineart)),
+        regionsPng: encodeIndexMapPng(regions),
+        label: 'assets/dohans/asset-01',
+      );
+
+      expect(pkg.meta.id, 'asset-01');
+      expect(pkg.regions.at(3, 3), 2);
+      expect(pkg.lineart.width, 8);
+    });
+
+    test('메타가 깨지면 넘긴 이름을 지목한다', () {
+      expect(
+        () => DohanPackage.fromBytes(
+          metaJson: '{ 이건 JSON이 아니다',
+          lineartPng: Uint8List(0),
+          regionsPng: Uint8List(0),
+          label: 'assets/dohans/bad',
+        ),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('assets/dohans/bad'), contains('해석할 수 없습니다')),
+        )),
+      );
     });
   });
 

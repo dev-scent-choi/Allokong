@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
@@ -56,6 +55,18 @@ class DohanMeta {
         'createdAt': createdAt.toUtc().toIso8601String(),
       };
 
+  /// JSON 문자열을 해석한다. 실패하면 출처를 지목하는 한국어 예외를 던진다.
+  ///
+  /// [label] 은 어느 도안이 깨졌는지 사람이 알아볼 이름이다 — 디렉터리 경로든
+  /// 에셋 키든 상관없다.
+  static DohanMeta parse(String json, {String label = '(바이트)'}) {
+    try {
+      return DohanMeta.fromJson(jsonDecode(json) as Map<String, dynamic>);
+    } catch (e) {
+      throw FormatException('meta.json의 내용을 해석할 수 없습니다 ($label): $e');
+    }
+  }
+
   factory DohanMeta.fromJson(Map<String, dynamic> json) => DohanMeta(
         id: json['id'] as String,
         title: json['title'] as String,
@@ -73,7 +84,7 @@ class DohanMeta {
       );
 }
 
-/// 디스크에서 읽어 들인 도안 한 벌.
+/// 도안 한 벌. 메타데이터와 선화, 영역 맵을 함께 들고 있다.
 class DohanPackage {
   final DohanMeta meta;
   final img.Image lineart;
@@ -84,65 +95,32 @@ class DohanPackage {
     required this.lineart,
     required this.regions,
   });
-}
 
-Future<Uint8List> _readBytes(Directory dir, String name) async {
-  try {
-    return await File('${dir.path}/$name').readAsBytes();
-  } on FileSystemException catch (e) {
-    throw FormatException('$name 파일을 열 수 없습니다 (${dir.path}): ${e.message}');
+  /// 바이트 세 벌에서 도안을 만든다.
+  ///
+  /// 앱에 내장된 도안은 Flutter 에셋이라 `File` 이 아니고 경로로 읽을 수 없다.
+  /// 에셋 번들에서 받은 바이트를 그대로 넘기면 된다. 디스크에서 읽는 경로는
+  /// `dohan_core_io.dart` 의 `readDohanPackage` 가 이 생성자를 쓴다.
+  ///
+  /// [label] 은 실패 메시지에 붙는 출처 표시다 — 디렉터리 경로든 에셋 키든,
+  /// 어느 도안이 깨졌는지 사람이 알아볼 수 있는 이름을 넘긴다.
+  factory DohanPackage.fromBytes({
+    required String metaJson,
+    required Uint8List lineartPng,
+    required Uint8List regionsPng,
+    String label = '(바이트)',
+  }) {
+    final meta = DohanMeta.parse(metaJson, label: label);
+
+    final lineart = img.decodePng(lineartPng);
+    if (lineart == null) {
+      throw FormatException('lineart.png를 디코딩할 수 없습니다 ($label).');
+    }
+
+    return DohanPackage(
+      meta: meta,
+      lineart: lineart,
+      regions: decodeIndexMapPng(regionsPng),
+    );
   }
-}
-
-Future<String> _readText(Directory dir, String name) async {
-  try {
-    return await File('${dir.path}/$name').readAsString();
-  } on FileSystemException catch (e) {
-    throw FormatException('$name 파일을 열 수 없습니다 (${dir.path}): ${e.message}');
-  }
-}
-
-/// 도안 패키지 세 파일을 [dir]에 쓴다.
-Future<void> writeDohanPackage({
-  required Directory dir,
-  required img.Image lineart,
-  required RegionMap regions,
-  required DohanMeta meta,
-}) async {
-  await dir.create(recursive: true);
-  await File('${dir.path}/lineart.png')
-      .writeAsBytes(img.encodePng(lineart, level: 9));
-  await File('${dir.path}/regions.png')
-      .writeAsBytes(encodeIndexMapPng(regions));
-  await File('${dir.path}/meta.json').writeAsString(
-    const JsonEncoder.withIndent('  ').convert(meta.toJson()),
-  );
-}
-
-/// [dir]의 도안 패키지를 읽는다.
-///
-/// 어느 파일에서 실패했는지 한국어로 알려준다. 앱이 사용자에게 보여줄 안내를
-/// 고르려면 파일 단위로 원인을 구분할 수 있어야 한다.
-Future<DohanPackage> readDohanPackage(Directory dir) async {
-  final metaText = await _readText(dir, 'meta.json');
-  final DohanMeta meta;
-  try {
-    meta = DohanMeta.fromJson(jsonDecode(metaText) as Map<String, dynamic>);
-  } catch (e) {
-    throw FormatException('meta.json의 내용을 해석할 수 없습니다 (${dir.path}): $e');
-  }
-
-  final lineartBytes = await _readBytes(dir, 'lineart.png');
-  final lineart = img.decodePng(lineartBytes);
-  if (lineart == null) {
-    throw FormatException('lineart.png를 디코딩할 수 없습니다 (${dir.path}).');
-  }
-
-  final regionBytes = await _readBytes(dir, 'regions.png');
-
-  return DohanPackage(
-    meta: meta,
-    lineart: lineart,
-    regions: decodeIndexMapPng(regionBytes),
-  );
 }

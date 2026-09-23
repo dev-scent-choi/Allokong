@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dohan_core/dohan_core.dart';
+import 'package:dohan_core/dohan_core_io.dart';
 import 'package:image/image.dart' as img;
 import 'package:test/test.dart';
 
@@ -213,6 +214,24 @@ void main() {
           ['build', input.path, '${tmp.path}/out', '--category=우주선']);
 
       expect(code, 64);
+    });
+
+    test('음수 임계값은 조용히 넘어가지 않고 65 를 돌려준다', () async {
+      // 범위를 안 보면 음수가 해당 게이트를 무력화해, 오타가 "통과"로 보인다.
+      final input = File('${tmp.path}/in.png')
+        ..writeAsBytesSync(img.encodePng(_boxImage()));
+
+      for (final bad in [
+        '--min-tap-diameter=-5',
+        '--min-region-area=0',
+        '--canvas-size=0',
+        '--difficulty=9',
+        '--close-radius=-1',
+      ]) {
+        final code = await cli.runDohan(
+            ['build', input.path, '${tmp.path}/out', bad]);
+        expect(code, 65, reason: '$bad 는 거부돼야 한다');
+      }
     });
 
     test('인자 개수가 틀리면 64 를 돌려준다', () async {

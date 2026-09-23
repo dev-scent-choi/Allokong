@@ -2,44 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:dohan_core/dohan_core.dart';
+import 'package:dohan_core/dohan_core_io.dart';
 import 'package:image/image.dart' as img;
-
-/// 원본을 정사각 캔버스에 흰 여백과 함께 비율을 지켜 맞춰 넣는다.
-///
-/// 입력 이미지의 크기와 비율이 제각각이어도 도안 캔버스는 항상 같아야
-/// 한다. 잘라내지 않고 여백을 주는 이유는 그림이 잘리면 안 되기 때문이다.
-img.Image _fitToCanvas(img.Image src, int size) {
-  final canvas = img.Image(width: size, height: size, numChannels: 4);
-  img.fill(canvas, color: img.ColorRgba8(255, 255, 255, 255));
-  final longest = src.width > src.height ? src.width : src.height;
-  final scale = size / longest;
-  final w = (src.width * scale).round();
-  final h = (src.height * scale).round();
-  final resized = img.copyResize(
-    src,
-    width: w,
-    height: h,
-    interpolation: img.Interpolation.cubic,
-  );
-  img.compositeImage(
-    canvas,
-    resized,
-    dstX: (size - w) ~/ 2,
-    dstY: (size - h) ~/ 2,
-  );
-  return canvas;
-}
-
-/// 선 마스크를 알파 채널이 있는 검정 선화 이미지로 바꾼다.
-img.Image _inkToImage(BinaryMask mask) {
-  final im = img.Image(width: mask.width, height: mask.height, numChannels: 4);
-  for (var y = 0; y < mask.height; y++) {
-    for (var x = 0; x < mask.width; x++) {
-      im.setPixelRgba(x, y, 0, 0, 0, mask.isInk(x, y) ? 255 : 0);
-    }
-  }
-  return im;
-}
 
 /// 선화 파일 하나를 도안 패키지로 변환한다.
 ///
@@ -63,7 +27,7 @@ Future<QualityReport> buildDohan({
     throw FormatException('이미지를 읽을 수 없습니다: ${input.path}');
   }
 
-  final fitted = _fitToCanvas(source, canvasSize);
+  final fitted = fitToCanvas(source, canvasSize);
   final result = runPipeline(
     fitted,
     options: PipelineOptions(
@@ -79,7 +43,7 @@ Future<QualityReport> buildDohan({
   // 않는다.
   await writeDohanPackage(
     dir: outDir,
-    lineart: _inkToImage(result.ink),
+    lineart: inkToImage(result.ink),
     regions: result.regions,
     meta: DohanMeta(
       id: id,
@@ -98,9 +62,9 @@ Future<QualityReport> buildDohan({
   // 고밀도 기기용 선화. 영역 라벨링은 1배 해상도에서 한 번만 하고, 여기서는
   // 선만 2배로 다시 뽑는다. 두 해상도의 경계가 1픽셀 어긋나도 선 두께 안에
   // 묻히므로 채움이 비어 보이지 않는다.
-  final ink2x = closeLines(binarize(_fitToCanvas(source, canvasSize * 2)));
+  final ink2x = closeLines(binarize(fitToCanvas(source, canvasSize * 2)));
   await File('${outDir.path}/lineart@2x.png')
-      .writeAsBytes(img.encodePng(_inkToImage(ink2x), level: 9));
+      .writeAsBytes(img.encodePng(inkToImage(ink2x), level: 9));
 
   return result.quality;
 }
@@ -119,7 +83,7 @@ Future<void> writePreview({
   if (source == null) {
     throw FormatException('이미지를 읽을 수 없습니다: ${input.path}');
   }
-  final result = runPipeline(_fitToCanvas(source, canvasSize));
+  final result = runPipeline(fitToCanvas(source, canvasSize));
   await output.writeAsBytes(
     img.encodePng(renderRegionPreview(result.regions), level: 9),
   );
@@ -135,10 +99,18 @@ String defaultIdFor(File input) {
   return dot > 0 ? name.substring(0, dot) : name;
 }
 
-int _requireInt(String name, String raw) {
+/// 정수 옵션을 파싱하고 범위를 확인한다.
+///
+/// 범위를 보지 않으면 음수나 0 이 조용히 해당 게이트를 무력화한다 — 오타 난
+/// 값이 "통과"로 보이므로, 임계값을 실측하는 캘리브레이션 작업을 오도한다.
+int _requireIntInRange(String name, String raw, {int min = 1, int? max}) {
   final value = int.tryParse(raw);
   if (value == null) {
     throw FormatException('$name 값은 정수여야 합니다: "$raw"');
+  }
+  if (value < min || (max != null && value > max)) {
+    final range = max == null ? '$min 이상이어야' : '$min 에서 $max 사이여야';
+    throw FormatException('$name 값은 $range 합니다: "$raw"');
   }
   return value;
 }
@@ -187,17 +159,19 @@ class _BuildCommand extends Command<int> {
       id: id,
       title: title,
       category: argResults!['category'] as String,
-      canvasSize: _requireInt('--canvas-size', argResults!['canvas-size'] as String),
-      difficulty: _requireInt('--difficulty', argResults!['difficulty'] as String),
+      canvasSize: _requireIntInRange('--canvas-size', argResults!['canvas-size'] as String),
+      difficulty: _requireIntInRange(
+          '--difficulty', argResults!['difficulty'] as String,
+          max: 3),
       thresholds: QualityThresholds(
-        minTapDiameterPx: _requireInt(
+        minTapDiameterPx: _requireIntInRange(
             '--min-tap-diameter', argResults!['min-tap-diameter'] as String),
       ),
-      minRegionArea: _requireInt(
+      minRegionArea: _requireIntInRange(
           '--min-region-area', argResults!['min-region-area'] as String),
       closeRadius: closeRadiusRaw == null
           ? null
-          : _requireInt('--close-radius', closeRadiusRaw),
+          : _requireIntInRange('--close-radius', closeRadiusRaw, min: 0),
     );
 
     stdout.writeln('$id: ${report.koreanSummary()}');
@@ -227,7 +201,7 @@ class _PreviewCommand extends Command<int> {
       input: File(rest[0]),
       output: File(rest[1]),
       canvasSize:
-          _requireInt('--canvas-size', argResults!['canvas-size'] as String),
+          _requireIntInRange('--canvas-size', argResults!['canvas-size'] as String),
     );
     stdout.writeln('검수 이미지를 썼습니다: ${rest[1]}');
     return 0;

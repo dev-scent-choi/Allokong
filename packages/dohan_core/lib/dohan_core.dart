@@ -3,6 +3,7 @@ library dohan_core;
 
 export 'src/types.dart';
 export 'src/distance_field.dart';
+export 'src/canvas.dart';
 export 'src/binarize.dart';
 export 'src/morphology.dart';
 export 'src/label_regions.dart';
