@@ -1,0 +1,36 @@
+{
+  "id": "flower-01",
+  "title": "동그라미 꽃",
+  "category": "animal",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 4,
+  "difficulty": 1,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      506,
+      114
+    ],
+    "3": [
+      508,
+      234
+    ],
+    "4": [
+      511,
+      355
+    ],
+    "5": [
+      512,
+      512
+    ]
+  },
+  "createdAt": "2026-09-25T02:40:55.211945Z"
+}
