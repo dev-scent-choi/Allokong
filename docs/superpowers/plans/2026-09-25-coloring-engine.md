@@ -1189,7 +1189,7 @@ void main() {
     final stack = UndoStack();
 
     stack.push(
-        FillCommand(regionId: 2, before: null, after: red), fills);
+        const FillCommand(regionId: 2, before: null, after: red), fills);
     expect(fills.fillOf(2), red);
 
     expect(stack.undo(fills), isTrue);
@@ -1200,8 +1200,8 @@ void main() {
     final fills = FillState();
     final stack = UndoStack();
 
-    stack.push(FillCommand(regionId: 2, before: null, after: red), fills);
-    stack.push(FillCommand(regionId: 2, before: red, after: blue), fills);
+    stack.push(const FillCommand(regionId: 2, before: null, after: red), fills);
+    stack.push(const FillCommand(regionId: 2, before: red, after: blue), fills);
     expect(fills.fillOf(2), blue);
 
     stack.undo(fills);
@@ -1220,9 +1220,9 @@ void main() {
     final fills = FillState();
     final stack = UndoStack();
 
-    stack.push(FillCommand(regionId: 2, before: null, after: red), fills);
-    stack.push(FillCommand(regionId: 3, before: null, after: blue), fills);
-    stack.push(FillCommand(regionId: 2, before: red, after: blue), fills);
+    stack.push(const FillCommand(regionId: 2, before: null, after: red), fills);
+    stack.push(const FillCommand(regionId: 3, before: null, after: blue), fills);
+    stack.push(const FillCommand(regionId: 2, before: red, after: blue), fills);
 
     stack.undo(fills);
     expect(fills.fillOf(2), red);
@@ -1242,7 +1242,7 @@ void main() {
 
     for (var i = 0; i < 5; i++) {
       stack.push(
-          FillCommand(regionId: 2 + i, before: null, after: red), fills);
+          const FillCommand(regionId: 2 + i, before: null, after: red), fills);
     }
 
     expect(stack.length, 3);
@@ -2057,7 +2057,7 @@ class ColoringController extends ChangeNotifier {
     if (before == _selected) return false;
 
     _undo.push(
-      FillCommand(regionId: id, before: before, after: _selected),
+      const FillCommand(regionId: id, before: before, after: _selected),
       _fills,
     );
     _scheduleSave();
