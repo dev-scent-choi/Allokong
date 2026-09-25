@@ -34,9 +34,12 @@ class BundledDohanSource implements DohanSource {
     final regions = await _bundle.load('$dir/regions.png');
 
     return DohanPackage.fromBytes(
-      metaJson: utf8.decode(meta.buffer.asUint8List()),
-      lineartPng: Uint8List.view(lineart.buffer),
-      regionsPng: Uint8List.view(regions.buffer),
+      // ByteData 는 더 큰 버퍼의 조각일 수 있다. .buffer 를 그대로 쓰면
+      // offsetInBytes 를 무시해 엉뚱한 자리에서 읽는다 — Flutter 문서와
+      // asset_bundle.dart 내부가 모두 sublistView 를 쓰는 이유다.
+      metaJson: utf8.decode(Uint8List.sublistView(meta)),
+      lineartPng: Uint8List.sublistView(lineart),
+      regionsPng: Uint8List.sublistView(regions),
       label: dir,
     );
   }
