@@ -34,14 +34,27 @@ class ArtworkRepository {
     await tmp.rename(_fileFor(artwork.id).path);
   }
 
+  /// 작품 하나를 읽는다.
+  ///
+  /// 파일이 없으면 null. 내용이 깨졌으면 null — 폴더 하나의 손상이 나머지를
+  /// 못 읽게 하지 않는다는 것이 이 저장소의 설계다.
+  ///
+  /// 다만 **읽기 자체가 실패한 경우(권한, 잠김, 디스크)는 던진다.** 그것을
+  /// null 로 뭉개면 호출자가 "작품이 없다"로 읽고 새로 시작한 뒤 멀쩡한
+  /// 파일 위에 덮어쓴다 — 이 설계가 막으려던 바로 그 데이터 손실이다.
   Future<Artwork?> load(String id) async {
-    final file = _fileFor(id);
-    if (!file.existsSync()) return null;
+    final String text;
     try {
-      return Artwork.fromJson(
-          jsonDecode(await file.readAsString()) as Map<String, dynamic>);
-    } catch (_) {
-      // 손상된 폴더 하나 때문에 나머지를 못 읽게 하지 않는다.
+      text = await _fileFor(id).readAsString();
+    } on PathNotFoundException {
+      return null;
+    }
+
+    try {
+      return Artwork.fromJson(jsonDecode(text) as Map<String, dynamic>);
+    } on FormatException {
+      return null;
+    } on TypeError {
       return null;
     }
   }
@@ -52,8 +65,16 @@ class ArtworkRepository {
     final out = <Artwork>[];
     for (final entity in _artworksDir.listSync()) {
       if (entity is! Directory) continue;
-      final artwork = await load(entity.path.split(Platform.pathSeparator).last);
-      if (artwork != null) out.add(artwork);
+      final id = entity.path.split(Platform.pathSeparator).last;
+      try {
+        final artwork = await load(id);
+        if (artwork != null) out.add(artwork);
+      } on FileSystemException {
+        // 폴더 하나를 못 읽어도 목록 전체를 못 만들게 하지 않는다.
+        // 읽기 실패를 감추는 것은 load 가 아니라 여기 — 목록은 최선을 다해
+        // 보여주고, 단일 작품을 열 때는 실패를 그대로 알린다.
+        continue;
+      }
     }
     out.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return out;

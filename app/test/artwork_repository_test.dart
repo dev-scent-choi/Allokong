@@ -94,4 +94,28 @@ void main() {
     expect(await repo.load('a1'), isNull);
     expect(Directory('${root.path}/artworks/a1').existsSync(), isFalse);
   });
+
+  test('읽기 자체가 실패하면 null 로 뭉개지 않고 던진다', () async {
+    // artwork.json 자리에 디렉터리를 만들어 읽기를 실패시킨다.
+    // 권한 오류나 파일 잠김과 같은 부류다.
+    Directory('${root.path}/artworks/locked/artwork.json')
+        .createSync(recursive: true);
+
+    await expectLater(
+      repo.load('locked'),
+      throwsA(isA<FileSystemException>()),
+      reason: 'null 을 돌려주면 호출자가 새로 시작해 멀쩡한 파일을 덮어쓴다',
+    );
+  });
+
+  test('listAll 은 읽을 수 없는 폴더를 건너뛴다', () async {
+    await repo.save(sample(id: 'good'));
+    Directory('${root.path}/artworks/locked/artwork.json')
+        .createSync(recursive: true);
+
+    final all = await repo.listAll();
+
+    expect(all.map((a) => a.id), ['good'],
+        reason: '한 폴더를 못 읽어도 목록은 나머지를 보여준다');
+  });
 }
