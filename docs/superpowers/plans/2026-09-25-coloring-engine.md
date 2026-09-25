@@ -2489,6 +2489,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   int _paletteGeneration = 0;
 
   void _onChanged() {
+    if (!mounted) return;
+    // 동기적으로 한 번 다시 그린다. 되돌리기 버튼의 활성 여부는 canUndo 에
+    // 달려 있는데, 그것을 팔레트 이미지 디코딩이 끝난 뒤의 setState 에만
+    // 맡기면 버튼이 한 박자 늦는다 — 위젯 테스트의 pump() 한 번으로는
+    // 잡히지 않고, 실제 기기에서도 아이가 칠한 직후 버튼이 잠깐 죽어 있다.
+    setState(() {});
     unawaited(_refreshPalette());
   }
 
