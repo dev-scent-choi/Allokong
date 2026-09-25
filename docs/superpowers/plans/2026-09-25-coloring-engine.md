@@ -1011,7 +1011,7 @@ void main() {
     );
 
     final rec = ui.PictureRecorder();
-    painter.paint(ui.Canvas(rec), Size(ids.length.toDouble(), 1));
+    painter.paint(ui.Canvas(rec), ui.Size(ids.length.toDouble(), 1));
     final out = await rec.endRecording().toImage(ids.length, 1);
     final d = (await out.toByteData(format: ui.ImageByteFormat.rawRgba))!;
 
@@ -1043,7 +1043,7 @@ void main() {
       palette: palette,
       lineart: lineart,
       canvasSize: ids.length,
-    ).paint(ui.Canvas(rec), Size(ids.length.toDouble(), 1));
+    ).paint(ui.Canvas(rec), ui.Size(ids.length.toDouble(), 1));
 
     final out = await rec.endRecording().toImage(ids.length, 1);
     final d = (await out.toByteData(format: ui.ImageByteFormat.rawRgba))!;
@@ -1055,6 +1055,8 @@ void main() {
   });
 }
 ```
+
+`Size` 를 `ui.Size` 로 한정한 이유는, 이 파일이 `dart:ui` 를 `as ui` 로 들여오고 `flutter_test` 는 `Size` 를 이름 그대로 내보내지 않기 때문이다. 한정 없이 쓰면 컴파일되지 않는다.
 
 - [ ] **Step 4: 테스트 실패 확인**
 
