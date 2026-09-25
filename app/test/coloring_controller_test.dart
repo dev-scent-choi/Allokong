@@ -151,4 +151,76 @@ void main() {
     expect(restored.fills.fillOf(2), const Color(0xFF63B98B));
     expect(restored.canUndo, isFalse, reason: '불러온 상태는 되돌릴 대상이 아니다');
   });
+
+  test('다른 도안으로 갈아타도 앞 작품의 마지막 칠이 남는다', () async {
+    c.pickColor(const Color(0xFFEF7586));
+    c.tapAt(const Offset(0.5, 0.5));
+
+    // 디바운스가 끝나기 전에 갈아탄다 — 아이가 칠하자마자 다른 도안을 고르는 경우다.
+    await c.open(dohanId: 'fake', artworkId: 'w2');
+    c.pickColor(const Color(0xFF6CAEE0));
+    c.tapAt(const Offset(0.5, 0.5));
+    await c.close();
+
+    final repo = ArtworkRepository(root);
+    expect((await repo.load('w1'))!.fills[2], const Color(0xFFEF7586).toARGB32(),
+        reason: '갈아타기 전에 칠한 것이 사라지면 안 된다');
+    expect((await repo.load('w2'))!.fills[2], const Color(0xFF6CAEE0).toARGB32());
+  });
+
+  test('close 없이 dispose 해도 마지막 칠이 남는다', () async {
+    final one = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(
+        repository: ArtworkRepository(root),
+        // 디바운스를 길게 잡아, 쓰였다면 그것은 dispose 가 쓴 것이다.
+        debounce: const Duration(seconds: 30),
+      ),
+    );
+    await one.open(dohanId: 'fake', artworkId: 'w3');
+    one.pickColor(const Color(0xFF63B98B));
+    one.tapAt(const Offset(0.5, 0.5));
+
+    one.dispose();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final saved = await ArtworkRepository(root).load('w3');
+    expect(saved, isNotNull, reason: '아이가 칠하자마자 화면을 닫은 경우다');
+    expect(saved!.fills[2], const Color(0xFF63B98B).toARGB32());
+  });
+
+  test('덧칠한 뒤 되돌리면 그 전 색으로 돌아간다', () {
+    c.pickColor(const Color(0xFFEF7586));
+    c.tapAt(const Offset(0.5, 0.5));
+    c.pickColor(const Color(0xFF6CAEE0));
+    c.tapAt(const Offset(0.5, 0.5));
+
+    expect(c.undo(), isTrue);
+
+    expect(c.fills.fillOf(2), const Color(0xFFEF7586),
+        reason: 'null 이 아니라 직전 색으로 돌아와야 한다');
+  });
+
+  test('탭만 하고 두면 디바운스가 끝난 뒤 저장된다', () async {
+    c.pickColor(const Color(0xFFEF7586));
+    c.tapAt(const Offset(0.5, 0.5));
+
+    // close() 를 부르지 않는다 — 타이머가 스스로 쓰는지 본다.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    final saved = await ArtworkRepository(root).load('w1');
+    expect(saved, isNotNull);
+    expect(saved!.fills[2], const Color(0xFFEF7586).toARGB32());
+  });
+
+  test('다른 도안을 열면 앞선 되돌리기 기록이 남지 않는다', () async {
+    c.pickColor(const Color(0xFFEF7586));
+    c.tapAt(const Offset(0.5, 0.5));
+    expect(c.canUndo, isTrue);
+
+    await c.open(dohanId: 'fake', artworkId: 'w4');
+
+    expect(c.canUndo, isFalse, reason: '새로 연 도안은 앞 도안을 되돌릴 수 없다');
+    expect(c.fills.filledCount, 0);
+  });
 }
