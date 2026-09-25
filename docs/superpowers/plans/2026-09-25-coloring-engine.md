@@ -1242,7 +1242,7 @@ void main() {
 
     for (var i = 0; i < 5; i++) {
       stack.push(
-          const FillCommand(regionId: 2 + i, before: null, after: red), fills);
+          FillCommand(regionId: 2 + i, before: null, after: red), fills);
     }
 
     expect(stack.length, 3);
