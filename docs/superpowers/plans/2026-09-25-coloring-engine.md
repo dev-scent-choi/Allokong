@@ -2105,7 +2105,10 @@ class ColoringController extends ChangeNotifier {
     if (before == _selected) return false;
 
     _undo.push(
-      const FillCommand(regionId: id, before: before, after: _selected),
+      // const 를 붙이면 안 된다 — id·before·_selected 가 전부 런타임 값이라
+      // "Arguments of a constant creation must be constant expressions" 로
+      // 컴파일이 깨진다. FillCommand 의 생성자가 const 인 것과는 별개다.
+      FillCommand(regionId: id, before: before, after: _selected),
       _fills,
     );
     _scheduleSave();
@@ -2709,7 +2712,13 @@ class KkumulApp extends StatelessWidget {
 cd app && flutter test
 ```
 
-Expected: PASS — 전체 통과 (smoke 1 + source 3 + transform 12 + fill_state 6 + shader 2 + command 5 + repository 7 + autosave 4 + controller 8 + screen 4 = 52개)
+Expected: PASS — 전체 통과 (smoke 1 + source 4 + transform 10 + fill_state 6 + shader 2 + command 5 + repository 9 + autosave 6 + controller 8 + screen 4 = 55개)
+
+> 이 내역은 태스크 9 직전에 실제로 세어 고친 값이다(`grep -c` + `flutter test`).
+> 원래 적혀 있던 "52개"는 계획을 쓸 때의 추정이라 네 파일에서 틀렸고,
+> 리뷰에서 나온 회귀 테스트가 저장소·자동 저장에 각각 2개씩 더 붙었다.
+> **숫자가 안 맞으면 테스트를 지우거나 더하지 말고 실제로 센 값을 보고할 것** —
+> 계획서의 기대치가 틀린 쪽일 수 있다.
 
 - [ ] **Step 7: 실제로 띄워 확인**
 
