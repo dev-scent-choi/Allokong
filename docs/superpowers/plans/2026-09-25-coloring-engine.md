@@ -157,10 +157,9 @@ flutter:
 
   assets:
     - assets/dohans/flower-01/
-
-  shaders:
-    - shaders/fill.frag
 ```
+
+`shaders:` 절은 **여기 넣지 않는다.** Task 5 가 `fill.frag` 파일을 만들면서 함께 등록한다. 없는 셰이더를 pubspec 에 적어 두면 이 태스크의 `flutter test` 가 에셋 번들링에서 실패한다.
 
 `image` 를 직접 넣는 이유는 `coloring_screen.dart` 가 선화를 PNG 로 인코딩할 때 쓰기 때문이다. `dohan_core` 를 통해 딸려 오긴 하지만, 직접 쓰는 패키지는 직접 선언해야 분석기가 조용하다.
 
@@ -939,7 +938,18 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: 실패하는 테스트 작성**
+- [ ] **Step 2: pubspec 에 셰이더 등록**
+
+`app/pubspec.yaml` 의 `flutter:` 절에 추가한다. `assets:` 아래, 같은 들여쓰기다.
+
+```yaml
+  shaders:
+    - shaders/fill.frag
+```
+
+Task 1 에서 일부러 미뤄 둔 등록이다 — 파일과 등록이 한 태스크 안에 같이 있어야 그 시점의 `flutter test` 가 통과한다.
+
+- [ ] **Step 3: 실패하는 테스트 작성**
 
 `app/test/fill_shader_test.dart`:
 
@@ -1042,7 +1052,7 @@ void main() {
 }
 ```
 
-- [ ] **Step 3: 테스트 실패 확인**
+- [ ] **Step 4: 테스트 실패 확인**
 
 ```bash
 cd app && flutter test test/fill_shader_test.dart
@@ -1050,7 +1060,7 @@ cd app && flutter test test/fill_shader_test.dart
 
 Expected: FAIL — `Target of URI doesn't exist: 'package:kkumul/coloring/coloring_painter.dart'`
 
-- [ ] **Step 4: 페인터 작성**
+- [ ] **Step 5: 페인터 작성**
 
 `app/lib/coloring/coloring_painter.dart`:
 
@@ -1127,7 +1137,7 @@ class ColoringPainter extends CustomPainter {
 }
 ```
 
-- [ ] **Step 5: 테스트 통과 확인**
+- [ ] **Step 6: 테스트 통과 확인**
 
 ```bash
 cd app && flutter test test/fill_shader_test.dart
@@ -1135,7 +1145,7 @@ cd app && flutter test test/fill_shader_test.dart
 
 Expected: PASS — 2개 테스트 통과
 
-- [ ] **Step 6: 커밋**
+- [ ] **Step 7: 커밋**
 
 ```bash
 git add app
@@ -2171,11 +2181,20 @@ void main() {
     root = Directory.systemTemp.createTempSync('kkumul_ui_');
     controller = ColoringController(
       source: FakeDohanSource(),
-      autosave: Autosave(repository: ArtworkRepository(root)),
+      autosave: Autosave(
+        repository: ArtworkRepository(root),
+        // 기본 1초를 쓰면 탭하는 테스트가 끝난 뒤에도 타이머가 살아 있어
+        // flutter_test 가 "A Timer is still pending" 으로 실패한다.
+        debounce: const Duration(milliseconds: 20),
+      ),
     );
     await controller.open(dohanId: 'fake', artworkId: 'w1');
   });
-  tearDown(() => root.deleteSync(recursive: true));
+  tearDown(() async {
+    await controller.close();
+    controller.dispose();
+    root.deleteSync(recursive: true);
+  });
 
   testWidgets('팔레트에서 색을 고르면 컨트롤러에 반영된다', (tester) async {
     await tester.pumpWidget(MaterialApp(
