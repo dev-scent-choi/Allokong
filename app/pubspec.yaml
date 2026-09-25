@@ -46,3 +46,6 @@ flutter:
 
   assets:
     - assets/dohans/flower-01/
+
+  shaders:
+    - shaders/fill.frag
