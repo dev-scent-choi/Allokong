@@ -1462,6 +1462,30 @@ void main() {
         reason: '임시 파일이 남으면 안 된다');
   });
 
+  test('읽기 자체가 실패하면 null 로 뭉개지 않고 던진다', () async {
+    // artwork.json 자리에 디렉터리를 만들어 읽기를 실패시킨다.
+    // 권한 오류나 파일 잠김과 같은 부류다. 실측: PathAccessException.
+    Directory('${root.path}/artworks/locked/artwork.json')
+        .createSync(recursive: true);
+
+    await expectLater(
+      repo.load('locked'),
+      throwsA(isA<FileSystemException>()),
+      reason: 'null 을 돌려주면 호출자가 새로 시작해 멀쩡한 파일을 덮어쓴다',
+    );
+  });
+
+  test('listAll 은 읽을 수 없는 폴더를 건너뛴다', () async {
+    await repo.save(sample(id: 'good'));
+    Directory('${root.path}/artworks/locked/artwork.json')
+        .createSync(recursive: true);
+
+    final all = await repo.listAll();
+
+    expect(all.map((a) => a.id), ['good'],
+        reason: '한 폴더를 못 읽어도 목록은 나머지를 보여준다');
+  });
+
   test('삭제하면 폴더가 사라진다', () async {
     await repo.save(sample());
 
@@ -1573,14 +1597,30 @@ class ArtworkRepository {
     await tmp.rename(_fileFor(artwork.id).path);
   }
 
+  /// 작품 하나를 읽는다.
+  ///
+  /// 파일이 없으면 null. 내용이 깨졌으면 null — 폴더 하나의 손상이 나머지를
+  /// 못 읽게 하지 않는다는 것이 이 저장소의 설계다.
+  ///
+  /// 다만 **읽기 자체가 실패한 경우(권한, 잠김, 디스크)는 던진다.** 그것을
+  /// null 로 뭉개면 호출자가 "작품이 없다"로 읽고 새로 시작한 뒤 멀쩡한
+  /// 파일 위에 덮어쓴다 — 이 설계가 막으려던 바로 그 데이터 손실이다.
+  ///
+  /// existsSync 가드를 두지 않는 이유는 그것이 "없음"과 "못 읽음"을 구분하지
+  /// 못하기 때문이다 — 디렉터리를 가리키는 File 에 대해 false 를 돌려준다.
   Future<Artwork?> load(String id) async {
-    final file = _fileFor(id);
-    if (!file.existsSync()) return null;
+    final String text;
     try {
-      return Artwork.fromJson(
-          jsonDecode(await file.readAsString()) as Map<String, dynamic>);
-    } catch (_) {
-      // 손상된 폴더 하나 때문에 나머지를 못 읽게 하지 않는다.
+      text = await _fileFor(id).readAsString();
+    } on PathNotFoundException {
+      return null;
+    }
+
+    try {
+      return Artwork.fromJson(jsonDecode(text) as Map<String, dynamic>);
+    } on FormatException {
+      return null;
+    } on TypeError {
       return null;
     }
   }
@@ -1591,8 +1631,16 @@ class ArtworkRepository {
     final out = <Artwork>[];
     for (final entity in _artworksDir.listSync()) {
       if (entity is! Directory) continue;
-      final artwork = await load(entity.path.split(Platform.pathSeparator).last);
-      if (artwork != null) out.add(artwork);
+      final id = entity.path.split(Platform.pathSeparator).last;
+      try {
+        final artwork = await load(id);
+        if (artwork != null) out.add(artwork);
+      } on FileSystemException {
+        // 폴더 하나를 못 읽어도 목록 전체를 못 만들게 하지 않는다.
+        // 읽기 실패를 감추는 것은 load 가 아니라 여기 — 목록은 최선을 다해
+        // 보여주고, 단일 작품을 열 때는 실패를 그대로 알린다.
+        continue;
+      }
     }
     out.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return out;
@@ -1611,7 +1659,7 @@ class ArtworkRepository {
 cd app && flutter test test/artwork_repository_test.dart
 ```
 
-Expected: PASS — 7개 테스트 통과
+Expected: PASS — 9개 테스트 통과
 
 - [ ] **Step 6: 커밋**
 
