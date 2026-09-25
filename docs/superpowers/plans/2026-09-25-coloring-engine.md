@@ -2214,6 +2214,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:kkumul/coloring/coloring_controller.dart';
+import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
 import 'package:kkumul/gallery/autosave.dart';
@@ -2260,12 +2261,7 @@ void main() {
     root = Directory.systemTemp.createTempSync('kkumul_ui_');
     controller = ColoringController(
       source: FakeDohanSource(),
-      autosave: Autosave(
-        repository: ArtworkRepository(root),
-        // 기본 1초를 쓰면 탭하는 테스트가 끝난 뒤에도 타이머가 살아 있어
-        // flutter_test 가 "A Timer is still pending" 으로 실패한다.
-        debounce: const Duration(milliseconds: 20),
-      ),
+      autosave: _NoopAutosave(root),
     );
     await controller.open(dohanId: 'fake', artworkId: 'w1');
   });
@@ -2341,6 +2337,20 @@ void main() {
       expect(size.height, greaterThanOrEqualTo(64));
     }
   });
+}
+
+/// 위젯 테스트는 저장 경로를 건드리지 않는다.
+///
+/// 디바운스 타이머를 살려 두면 `flutter_test` 가 "A Timer is still pending" 으로
+/// 실패하고, 그렇다고 `pump(Duration)` 으로 태우면 fake_async 아래에서 테스트가
+/// 통째로 멈춘다(저장소를 메모리 구현으로 바꿔도 멈추므로 디스크 I/O 탓이 아니다).
+/// 저장 동작은 `autosave_test.dart`(6개)와 `coloring_controller_test.dart`(13개)가
+/// 이미 덮는다. 여기서 볼 것은 화면 배선이다.
+class _NoopAutosave extends Autosave {
+  _NoopAutosave(Directory root) : super(repository: ArtworkRepository(root));
+
+  @override
+  void schedule(Artwork artwork) {}
 }
 ```
 
@@ -2551,12 +2561,6 @@ class _ColoringScreenState extends State<ColoringScreen>
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    final ready = _shader != null &&
-        _regionsImage != null &&
-        _lineartImage != null &&
-        _paletteImage != null &&
-        c.dohan != null;
-
     return Scaffold(
       backgroundColor: const Color(0xFFFCFCF8),
       appBar: AppBar(
@@ -2578,9 +2582,14 @@ class _ColoringScreenState extends State<ColoringScreen>
       body: Column(
         children: [
           Expanded(
-            child: ready
-                ? _buildCanvas(c)
-                : const Center(child: CircularProgressIndicator()),
+            // 도안만 읽히면 캔버스를 올린다. 셰이더와 텍스처는 아직 없을 수
+            // 있고, 그때는 아무것도 그리지 않은 채 자리만 잡는다. 텍스처가
+            // 올라오기를 기다렸다가 캔버스를 만들면 (1) 로딩 인디케이터가
+            // 영원히 애니메이션해 pumpAndSettle 이 끝나지 않고 (2) 그 사이의
+            // 탭이 통째로 사라진다 — 아이는 화면이 떴으면 누른다.
+            child: c.dohan == null
+                ? const Center(child: CircularProgressIndicator())
+                : _buildCanvas(c),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -2597,6 +2606,10 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   Widget _buildCanvas(ColoringController c) {
     final canvasSize = c.dohan!.regions.width;
+    final painted = _shader != null &&
+        _regionsImage != null &&
+        _lineartImage != null &&
+        _paletteImage != null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2611,16 +2624,18 @@ class _ColoringScreenState extends State<ColoringScreen>
           onTapDown: (d) => c.tapAt(transform.toCanvas(d.localPosition)),
           child: CustomPaint(
             size: Size(constraints.maxWidth, constraints.maxHeight),
-            painter: _FittedColoringPainter(
-              transform: transform,
-              inner: ColoringPainter(
-                shader: _shader!,
-                regions: _regionsImage!,
-                palette: _paletteImage!,
-                lineart: _lineartImage!,
-                canvasSize: canvasSize,
-              ),
-            ),
+            painter: painted
+                ? _FittedColoringPainter(
+                    transform: transform,
+                    inner: ColoringPainter(
+                      shader: _shader!,
+                      regions: _regionsImage!,
+                      palette: _paletteImage!,
+                      lineart: _lineartImage!,
+                      canvasSize: canvasSize,
+                    ),
+                  )
+                : null,
           ),
         );
       },
