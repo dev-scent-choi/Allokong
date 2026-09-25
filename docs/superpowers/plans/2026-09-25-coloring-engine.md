@@ -2039,6 +2039,7 @@ Expected: FAIL — `Target of URI doesn't exist: 'package:kkumul/coloring/colori
 `app/lib/coloring/coloring_controller.dart`:
 
 ```dart
+import 'dart:async';
 import 'dart:ui' show Offset;
 
 import 'package:dohan_core/dohan_core.dart';
@@ -2074,13 +2075,30 @@ class ColoringController extends ChangeNotifier {
   bool get canUndo => _undo.canUndo;
   bool get isReady => _dohan != null;
 
+  int _openGeneration = 0;
+
   /// 도안을 열고, 이어 그리던 작품이 있으면 그 상태를 얹는다.
   Future<void> open({
     required String dohanId,
     required String artworkId,
     Artwork? existing,
   }) async {
-    _dohan = await source.load(dohanId);
+    final generation = ++_openGeneration;
+
+    // 갈아타기 전에 이전 작품의 예약된 저장을 끝낸다. Autosave 의 _pending 은
+    // 한 칸뿐이라, 그냥 두면 다음 schedule() 이 그것을 덮어쓰면서 타이머까지
+    // 취소한다 — 아이가 마지막으로 칠한 것이 아무 소리 없이 사라진다.
+    // Artwork 가 자기 id 를 들고 있으므로, 상태를 리셋하기 전에 flush 하면
+    // 이전 작품은 제 id 로 쓰인다.
+    await autosave.flush();
+
+    final dohan = await source.load(dohanId);
+
+    // 빠르게 두 번 열면 먼저 시작한 쪽이 나중에 끝날 수 있다. 그 결과를 얹으면
+    // 아이가 마지막에 고른 도안이 아닌 것이 화면에 뜬다.
+    if (generation != _openGeneration) return;
+
+    _dohan = dohan;
     _artworkId = artworkId;
     _undo.clear();
     _fills.clear();
@@ -2142,7 +2160,11 @@ class ColoringController extends ChangeNotifier {
 
   @override
   void dispose() {
-    autosave.dispose();
+    // dispose 는 동기라 flush 를 기다릴 수 없다. 그렇다고 autosave 를 그냥
+    // 버리면 예약돼 있던 마지막 탭이 조용히 사라진다 — 아이가 칠하자마자
+    // 화면을 닫는 것이 정확히 그 상황이다. 쓰기를 먼저 걸어 두고, 그것이 끝난
+    // 뒤에 autosave 를 정리한다. flush() 는 던지지 않으므로 이 체인은 안전하다.
+    unawaited(autosave.flush().then((_) => autosave.dispose()));
     super.dispose();
   }
 }
@@ -2718,7 +2740,7 @@ class KkumulApp extends StatelessWidget {
 cd app && flutter test
 ```
 
-Expected: PASS — 전체 통과 (smoke 1 + source 4 + transform 10 + fill_state 6 + shader 2 + command 5 + repository 9 + autosave 6 + controller 8 + screen 4 = 55개)
+Expected: PASS — 전체 통과 (smoke 1 + source 4 + transform 10 + fill_state 6 + shader 2 + command 5 + repository 9 + autosave 6 + controller 13 + screen 4 = 60개)
 
 > 이 내역은 태스크 9 직전에 실제로 세어 고친 값이다(`grep -c` + `flutter test`).
 > 원래 적혀 있던 "52개"는 계획을 쓸 때의 추정이라 네 파일에서 틀렸고,
