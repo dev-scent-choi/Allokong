@@ -661,7 +661,7 @@ int regionAt(RegionMap regions, Offset canvasPoint) {
 cd app && flutter test test/canvas_transform_test.dart
 ```
 
-Expected: PASS — 12개 테스트 통과
+Expected: PASS — 10개 테스트 통과
 
 - [ ] **Step 5: 커밋**
 
