@@ -19,11 +19,25 @@ Future<void> main() async {
 
   const dohanId = 'flower-01';
   const artworkId = 'flower-01-1';
-  await controller.open(
-    dohanId: dohanId,
-    artworkId: artworkId,
-    existing: await repository.load(artworkId),
-  );
+
+  try {
+    await controller.open(
+      dohanId: dohanId,
+      artworkId: artworkId,
+      existing: await repository.load(artworkId),
+    );
+  } on Object catch (error) {
+    // 읽기 자체가 실패했든(권한·잠김·디스크) 내용이 규칙을 어겼든, 앱이 아예
+    // 뜨지 않는 것이 가장 나쁜 결과다 — 아이는 이유를 모르고 부모는 고칠
+    // 방법이 없다. 그렇다고 같은 id 로 새로 시작하면 자동 저장이 잠깐 못
+    // 읽었을 뿐인 멀쩡한 파일 위에 덮어쓴다. 복구용 id 로 비켜서 연다:
+    // 아이는 계속 칠할 수 있고 원본은 손대지 않는다.
+    debugPrint('저장된 작품을 열지 못했습니다 — 새 작품으로 시작합니다: $error');
+    await controller.open(
+      dohanId: dohanId,
+      artworkId: '$artworkId-복구-${DateTime.now().millisecondsSinceEpoch}',
+    );
+  }
 
   runApp(KkumulApp(controller: controller));
 }

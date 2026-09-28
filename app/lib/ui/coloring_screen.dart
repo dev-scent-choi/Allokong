@@ -77,8 +77,7 @@ class _ColoringScreenState extends State<ColoringScreen>
 
     final program = await ui.FragmentProgram.fromAsset('shaders/fill.frag');
     final regions = await _regionsToImage(dohan.regions);
-    final lineart = await _decode(
-        Uint8List.fromList(img.encodePng(dohan.lineart)));
+    final lineart = await _lineartToImage(dohan.lineart);
     final palette = await widget.controller.fills.paletteImage();
 
     if (!mounted) return;
@@ -129,26 +128,32 @@ class _ColoringScreenState extends State<ColoringScreen>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // 도안만 읽히면 캔버스를 올린다. 셰이더와 텍스처는 아직 없을 수
-          // 있고, 그때는 아무것도 그리지 않은 채 자리만 잡는다. 텍스처가
-          // 올라오기를 기다렸다가 캔버스를 만들면 그 사이의 탭이 통째로
-          // 사라진다 — 아이는 화면이 떴으면 누른다.
-          Expanded(
-            child: c.dohan == null
-                ? const Center(child: CircularProgressIndicator())
-                : _buildCanvas(c),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: PaletteBar(
-              colors: PaletteBar.toddlerPalette,
-              selected: c.selectedColor,
-              onPick: c.pickColor,
+      // AppBar 가 위쪽 인셋은 스스로 처리한다. 여기서 감싸는 것은 아래쪽 —
+      // SafeArea 없이는 팔레트의 64dp 중 아래쪽이 시스템 제스처 바 밑으로
+      // 들어가 실제 히트 영역이 줄어들고, 아이가 그 부분을 누르면 색 대신
+      // 홈 제스처가 먹는다.
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 도안만 읽히면 캔버스를 올린다. 셰이더와 텍스처는 아직 없을 수
+            // 있고, 그때는 아무것도 그리지 않은 채 자리만 잡는다. 텍스처가
+            // 올라오기를 기다렸다가 캔버스를 만들면 그 사이의 탭이 통째로
+            // 사라진다 — 아이는 화면이 떴으면 누른다.
+            Expanded(
+              child: c.dohan == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildCanvas(c),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: PaletteBar(
+                colors: PaletteBar.toddlerPalette,
+                selected: c.selectedColor,
+                onPick: c.pickColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -174,7 +179,7 @@ class _ColoringScreenState extends State<ColoringScreen>
           child: CustomPaint(
             size: Size(constraints.maxWidth, constraints.maxHeight),
             painter: painted
-                ? _FittedColoringPainter(
+                ? FittedColoringPainter(
                     transform: transform,
                     inner: ColoringPainter(
                       shader: _shader!,
@@ -196,11 +201,15 @@ class _ColoringScreenState extends State<ColoringScreen>
 ///
 /// 페인터 자신은 도안의 논리 좌표계로만 그리고, 화면에 맞추는 변환은 여기서
 /// 한 번에 건다. 셰이더 좌표도 이 변환을 그대로 따라간다.
-class _FittedColoringPainter extends CustomPainter {
+///
+/// 이름을 감추지 않는다 — 아이가 누른 곳과 칠해지는 곳이 맞는지는
+/// `translate`/`scale` 두 줄의 순서에 달려 있고, 그 계약을 테스트가 직접
+/// 그릴 수 있어야 한다(`fitted_coloring_painter_test.dart`).
+class FittedColoringPainter extends CustomPainter {
   final CanvasTransform transform;
   final ColoringPainter inner;
 
-  _FittedColoringPainter({required this.transform, required this.inner});
+  FittedColoringPainter({required this.transform, required this.inner});
 
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
@@ -212,15 +221,27 @@ class _FittedColoringPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FittedColoringPainter old) =>
+  bool shouldRepaint(FittedColoringPainter old) =>
       old.transform.scale != transform.scale ||
       old.transform.offset != transform.offset ||
       inner.shouldRepaint(old.inner);
 }
 
-Future<ui.Image> _decode(Uint8List bytes) async {
-  final codec = await ui.instantiateImageCodec(bytes);
-  return (await codec.getNextFrame()).image;
+/// 선화를 그대로 텍스처로 올린다.
+///
+/// PNG 로 인코딩했다가 곧바로 다시 디코딩하면 UI 아이소레이트에서 42ms 가
+/// 그냥 날아간다(직접 올리면 5ms). 화면을 열 때마다 생기는 끊김이다.
+Future<ui.Image> _lineartToImage(img.Image lineart) {
+  final bytes = lineart.getBytes(order: img.ChannelOrder.rgba);
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    Uint8List.fromList(bytes),
+    lineart.width,
+    lineart.height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
 }
 
 /// 영역 맵을 셰이더가 읽을 RGBA 텍스처로 바꾼다.

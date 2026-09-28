@@ -136,6 +136,33 @@ void main() {
     expect(undo.height, greaterThanOrEqualTo(64));
   });
 
+  testWidgets('좁은 화면에서도 여덟 색이 모두 보이고 제스처 영역에 가리지 않는다',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.padding = const FakeViewPadding(bottom: 34);
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    final swatches = find.byType(ColorSwatchButton);
+    expect(swatches, findsNWidgets(8));
+
+    for (final e in swatches.evaluate()) {
+      final rect = tester.getRect(find.byWidget(e.widget));
+      expect(rect.width, greaterThanOrEqualTo(64));
+      expect(rect.height, greaterThanOrEqualTo(64));
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(320),
+          reason: '화면 밖으로 밀려난 색은 아이에게 없는 색이다');
+      expect(rect.bottom, lessThanOrEqualTo(640 - 34),
+          reason: '제스처 영역에 걸치면 색 대신 홈 제스처가 먹는다');
+    }
+  });
+
   testWidgets('앱이 물러나면 예약된 저장을 마무리한다', (tester) async {
     final autosave = _RecordingAutosave(root);
     final lifecycleController = ColoringController(
