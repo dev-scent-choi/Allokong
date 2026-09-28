@@ -128,6 +128,39 @@ void main() {
       expect(size.width, greaterThanOrEqualTo(64));
       expect(size.height, greaterThanOrEqualTo(64));
     }
+
+    // 되돌리기 버튼도 같은 기준을 지켜야 한다. IconButton 의 기본값은 48 이라
+    // 그냥 두면 조용히 어긴다.
+    final undo = tester.getSize(find.byKey(const ValueKey('undo-button')));
+    expect(undo.width, greaterThanOrEqualTo(64));
+    expect(undo.height, greaterThanOrEqualTo(64));
+  });
+
+  testWidgets('앱이 물러나면 예약된 저장을 마무리한다', (tester) async {
+    final autosave = _RecordingAutosave(root);
+    final lifecycleController = ColoringController(
+      source: FakeDohanSource(),
+      autosave: autosave,
+    );
+    await lifecycleController.open(dohanId: 'fake', artworkId: 'w9');
+    addTearDown(lifecycleController.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: lifecycleController),
+    ));
+    await tester.pumpAndSettle();
+
+    // ColoringController.open() 이 갈아타기 전에 이전 작품을 안전하게 쓰려고
+    // 자체적으로 flush() 를 한 번 부른다(태스크 9) — 그래서 여기서는 0 이
+    // 아니라 "지금까지 부른 횟수"를 기준선으로 잡는다. 이 테스트가 보는 것은
+    // 생명주기 콜백이 그 위에 flush() 를 더 부르는지다.
+    final before = autosave.flushCount;
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+
+    expect(autosave.flushCount, greaterThan(before),
+        reason: '아이가 앱을 떠나면 기다리지 말고 바로 써야 한다');
   });
 }
 
@@ -143,4 +176,20 @@ class _NoopAutosave extends Autosave {
 
   @override
   void schedule(Artwork artwork) {}
+}
+
+/// 생명주기 배선만 본다. `flush()` 가 실제로 불렸는지만 기록하고 디스크는
+/// 건드리지 않는다 — 타이머도 I/O 도 없어야 위젯 테스트가 멈추지 않는다.
+class _RecordingAutosave extends Autosave {
+  _RecordingAutosave(Directory root) : super(repository: ArtworkRepository(root));
+
+  int flushCount = 0;
+
+  @override
+  void schedule(Artwork artwork) {}
+
+  @override
+  Future<void> flush() async {
+    flushCount++;
+  }
 }

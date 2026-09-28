@@ -40,6 +40,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_onChanged);
+    // dart:ui 는 ui.Image·FragmentShader 를 직접 해제하라고 요구한다. 위젯이
+    // 사라지는 시점이라 다시 그릴 일이 없으므로 여기서는 안전하다.
+    _shader?.dispose();
+    _regionsImage?.dispose();
+    _lineartImage?.dispose();
+    _paletteImage?.dispose();
     super.dispose();
   }
 
@@ -100,6 +106,10 @@ class _ColoringScreenState extends State<ColoringScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFFCFCF8),
       appBar: AppBar(
+        // AppBar 의 기본 toolbarHeight(56)는 되돌리기 버튼의 세로 히트박스를
+        // 64 로 키워도 그 안에서 눌러 찌그러뜨린다 — 툴바 자체를 64 로 키워야
+        // 버튼이 실제로 64dp 높이를 얻는다.
+        toolbarHeight: 64,
         title: Text(c.dohan?.meta.title ?? '색칠하기'),
         actions: [
           IconButton(
@@ -107,6 +117,10 @@ class _ColoringScreenState extends State<ColoringScreen>
             icon: const Icon(Icons.undo),
             tooltip: '되돌리기',
             iconSize: 32,
+            // IconButton 의 기본 히트 박스는 48×48 이다. iconSize 는 글리프만
+            // 키우고 누를 수 있는 영역은 그대로라, 스펙의 64dp 최소값을 지키려면
+            // 제약을 직접 줘야 한다. 아이 손가락은 어른보다 부정확하다.
+            constraints: const BoxConstraints(minWidth: 64, minHeight: 64),
             onPressed: c.canUndo
                 ? () {
                     c.undo();
