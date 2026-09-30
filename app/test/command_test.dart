@@ -1,4 +1,3 @@
-import 'dart:ui' show Offset;
 
 import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +23,7 @@ void main() {
   test('채움 명령이 색을 바꾸고 되돌린다', () {
     final state = ArtworkState();
     UndoStack().push(
-      FillCommand(regionId: 2, before: null, after: _pink),
+      const FillCommand(regionId: 2, before: null, after: _pink),
       state,
     );
     expect(state.fills.fillOf(2), _pink);
@@ -33,8 +32,8 @@ void main() {
   test('되돌리면 이전 색으로 간다', () {
     final state = ArtworkState();
     final stack = UndoStack();
-    stack.push(FillCommand(regionId: 2, before: null, after: _pink), state);
-    stack.push(FillCommand(regionId: 2, before: _pink, after: _blue), state);
+    stack.push(const FillCommand(regionId: 2, before: null, after: _pink), state);
+    stack.push(const FillCommand(regionId: 2, before: _pink, after: _blue), state);
 
     expect(stack.undo(state), isTrue);
     expect(state.fills.fillOf(2), _pink);
@@ -62,7 +61,7 @@ void main() {
   test('clear 하면 되돌릴 것이 없어진다', () {
     final state = ArtworkState();
     final stack = UndoStack();
-    stack.push(FillCommand(regionId: 2, before: null, after: _pink), state);
+    stack.push(const FillCommand(regionId: 2, before: null, after: _pink), state);
     stack.clear();
     expect(stack.canUndo, isFalse);
   });
@@ -133,9 +132,9 @@ void main() {
     stack.push(
       BatchCommand([
         StickerCommand(index: 0, before: _sticker('a'), after: null),
-        FillCommand(regionId: 2, before: _pink, after: null),
-        FillCommand(regionId: 3, before: _pink, after: null),
-        FillCommand(regionId: 4, before: _pink, after: null),
+        const FillCommand(regionId: 2, before: _pink, after: null),
+        const FillCommand(regionId: 3, before: _pink, after: null),
+        const FillCommand(regionId: 4, before: _pink, after: null),
       ]),
       state,
     );
@@ -155,7 +154,7 @@ void main() {
     final state = ArtworkState();
     final stack = UndoStack();
     stack.push(
-      BatchCommand([
+      const BatchCommand([
         FillCommand(regionId: 2, before: null, after: _pink),
         FillCommand(regionId: 2, before: _pink, after: _blue),
       ]),
@@ -172,7 +171,7 @@ void main() {
     // 레이어별로 스택을 쪼개면 깨지는 성질이다.
     final state = ArtworkState();
     final stack = UndoStack();
-    stack.push(FillCommand(regionId: 2, before: null, after: _pink), state);
+    stack.push(const FillCommand(regionId: 2, before: null, after: _pink), state);
     stack.push(StrokeCommand(_stroke()), state);
     stack.push(
       StickerCommand(index: 0, before: null, after: _sticker('a')),
