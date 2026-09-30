@@ -10,6 +10,7 @@ import '../coloring/canvas_transform.dart';
 import '../coloring/coloring_controller.dart';
 import '../coloring/coloring_painter.dart';
 import 'palette_bar.dart';
+import 'palette_shades.dart';
 
 /// 도안 하나를 칠하는 화면.
 class ColoringScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   ui.Image? _regionsImage;
   ui.Image? _lineartImage;
   ui.Image? _paletteImage;
+  int _paletteIndex = 0;
 
   @override
   void initState() {
@@ -147,9 +149,12 @@ class _ColoringScreenState extends State<ColoringScreen>
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: PaletteBar(
-                colors: PaletteBar.toddlerPalette,
-                selected: c.selectedColor,
-                onPick: c.pickColor,
+                shade: Shade.base,
+                selectedIndex: _paletteIndex,
+                onPickIndex: (i) {
+                  setState(() => _paletteIndex = i);
+                  c.pickColor(paletteShades[Shade.base]![i]);
+                },
               ),
             ),
           ],

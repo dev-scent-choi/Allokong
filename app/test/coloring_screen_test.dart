@@ -12,6 +12,7 @@ import 'package:kkumul/gallery/artwork_repository.dart';
 import 'package:kkumul/gallery/autosave.dart';
 import 'package:kkumul/ui/coloring_screen.dart';
 import 'package:kkumul/ui/palette_bar.dart';
+import 'package:kkumul/ui/palette_shades.dart';
 
 class FakeDohanSource implements DohanSource {
   @override
@@ -75,7 +76,7 @@ void main() {
     await tester.tap(swatches.at(4));
     await tester.pump();
 
-    expect(controller.selectedColor, PaletteBar.toddlerPalette[4]);
+    expect(controller.selectedColor, paletteShades[Shade.base]![4]);
   });
 
   testWidgets('캔버스를 탭하면 그 영역이 칠해진다', (tester) async {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'palette_shades.dart';
+
 /// 색 하나를 고르는 동그란 버튼.
 ///
 /// 터치 타겟을 64dp 로 잡는다 — 스펙 10.3 절의 최소값이고, 아이 손가락은
@@ -52,44 +54,35 @@ class ColorSwatchButton extends StatelessWidget {
 }
 
 /// 색 고르는 줄.
+///
+/// 색이 아니라 **자리(index)** 를 주고받는다. 명도 버튼을 누르면 여덟 색이
+/// 통째로 바뀌는데, 그때도 아이가 고른 자리는 그대로여야 하기 때문이다.
 class PaletteBar extends StatelessWidget {
-  /// 스펙 9장의 유아 기본 팔레트 8색.
-  static const toddlerPalette = <Color>[
-    Color(0xFFEF7586), // 분홍
-    Color(0xFFF1BD45), // 노랑
-    Color(0xFFEF8A45), // 주황
-    Color(0xFF6CAEE0), // 파랑
-    Color(0xFF63B98B), // 초록
-    Color(0xFF9E82CF), // 보라
-    Color(0xFF795548), // 갈색
-    Color(0xFFF5F5F5), // 흰색
-  ];
-
-  final List<Color> colors;
-  final Color selected;
-  final ValueChanged<Color> onPick;
+  final Shade shade;
+  final int selectedIndex;
+  final ValueChanged<int> onPickIndex;
 
   const PaletteBar({
     super.key,
-    required this.colors,
-    required this.selected,
-    required this.onPick,
+    required this.shade,
+    required this.selectedIndex,
+    required this.onPickIndex,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = paletteShades[shade]!;
     // Wrap 이지 가로 ListView 가 아니다. 64dp 여덟 개는 512dp 라 좁은 기기에서
-    // 마지막 두 색(갈색·흰색)이 화면 밖으로 밀려난다. 글을 못 읽는 아이는
-    // 줄이 옆으로 스크롤된다는 것을 알아낼 방법이 없다 — 보이지 않는 색은
-    // 없는 색이다. 줄바꿈하면 좁은 화면에서 두 줄이 되고 여덟 색이 다 보인다.
+    // 마지막 두 색이 화면 밖으로 밀려나고, 글을 못 읽는 아이는 줄이 옆으로
+    // 스크롤된다는 것을 알아낼 방법이 없다 — 보이지 않는 색은 없는 색이다.
     return Wrap(
       alignment: WrapAlignment.center,
       children: [
-        for (final c in colors)
+        for (var i = 0; i < colors.length; i++)
           ColorSwatchButton(
-            color: c,
-            selected: c.toARGB32() == selected.toARGB32(),
-            onTap: () => onPick(c),
+            color: colors[i],
+            selected: i == selectedIndex,
+            onTap: () => onPickIndex(i),
           ),
       ],
     );
