@@ -1049,8 +1049,10 @@ MSG
 `app/test/command_test.dart` 를 **통째로** 아래로 바꾼다:
 
 ```dart
-import 'dart:ui' show Offset;
-
+// dart:ui 를 따로 import 하지 말 것 — flutter_test 가 Offset 을 재수출하므로
+// unnecessary_import 로 잡힌다. 아래 명령 생성자들은 인자가 전부 상수인 자리에
+// const 를 붙여야 prefer_const_constructors 가 조용해진다. 다만 반복문 변수나
+// 함수 호출이 섞인 자리(`StrokeCommand(_stroke())` 등)에는 붙이면 안 된다.
 import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkumul/coloring/brush_state.dart';
