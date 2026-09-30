@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkumul/coloring/sticker_state.dart';
 import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
 import 'package:kkumul/gallery/autosave.dart';
@@ -114,6 +116,63 @@ void main() {
     expect(auto.saveCount, 1);
     expect((await repo.load('a1'))!.fills[2], 0xFF666666);
   });
+
+  test('브러시가 바뀌지 않으면 굽지 않는다', () async {
+    // 굽는 데 53ms 가 든다. 채움만 바꾸는 아이는 이 비용을 내면 안 된다.
+    var baked = 0;
+    final auto = Autosave(
+      repository: repo,
+      debounce: const Duration(seconds: 30),
+    );
+    addTearDown(auto.dispose);
+
+    Future<Uint8List?> bake() async {
+      baked++;
+      return Uint8List.fromList([1]);
+    }
+
+    auto.schedule(art(0xFF111111), brushRevision: 7, bakeBrush: bake);
+    await auto.flush();
+    expect(baked, 1, reason: '처음에는 한 번 굽는다');
+
+    auto.schedule(art(0xFF222222), brushRevision: 7, bakeBrush: bake);
+    await auto.flush();
+    expect(baked, 1, reason: '개정 번호가 같으면 다시 굽지 않는다');
+
+    auto.schedule(art(0xFF333333), brushRevision: 8, bakeBrush: bake);
+    await auto.flush();
+    expect(baked, 2, reason: '바뀌었으면 굽는다');
+  });
+
+  test('굽는 함수를 안 주면 부르지 않는다', () async {
+    final auto = Autosave(
+      repository: repo,
+      debounce: const Duration(seconds: 30),
+    );
+    addTearDown(auto.dispose);
+
+    auto.schedule(art(0xFF444444));
+    await auto.flush();
+
+    expect(auto.saveCount, 1);
+    expect(await repo.loadBrushPng('a1'), isNull);
+  });
+
+  test('스티커도 함께 쓴다', () async {
+    final auto = Autosave(
+      repository: repo,
+      debounce: const Duration(seconds: 30),
+    );
+    addTearDown(auto.dispose);
+
+    auto.schedule(
+      art(0xFF555555),
+      stickers: [Sticker(instanceId: 'a', stickerId: 'star-01', x: 5, y: 6)],
+    );
+    await auto.flush();
+
+    expect(await repo.loadStickers('a1'), hasLength(1));
+  });
 }
 
 /// 한 번만 실패하게 만들 수 있는 저장소. 디스크가 꽉 찼거나 잠긴 상황을
@@ -124,8 +183,12 @@ class _FlakyRepository extends ArtworkRepository {
   bool failNext = false;
 
   @override
-  Future<void> save(Artwork artwork) async {
+  Future<void> save(
+    Artwork artwork, {
+    List<Sticker> stickers = const [],
+    Uint8List? brushPng,
+  }) async {
     if (failNext) throw const FileSystemException('테스트용 저장 실패');
-    return super.save(artwork);
+    return super.save(artwork, stickers: stickers, brushPng: brushPng);
   }
 }

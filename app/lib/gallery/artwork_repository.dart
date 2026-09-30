@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import '../coloring/sticker_state.dart';
 import '../core/artwork.dart';
 
 /// 작품을 폴더 단위로 저장한다.
@@ -20,9 +22,26 @@ class ArtworkRepository {
 
   File _fileFor(String id) => File('${_dirFor(id).path}/artwork.json');
 
+  File _stickersFileFor(String id) => File('${_dirFor(id).path}/stickers.json');
+
+  File _brushFileFor(String id) => File('${_dirFor(id).path}/brush.png');
+
   /// 작품을 쓴다. 임시 파일에 쓰고 rename 해서, 쓰는 도중 앱이 죽어도
   /// 반쯤 쓰인 파일이 남지 않게 한다.
-  Future<void> save(Artwork artwork) async {
+  ///
+  /// [brushPng] 가 `null` 이면 `brush.png` 를 **건드리지 않는다.** "지워라"가
+  /// 아니라 "바뀐 게 없다"는 뜻이다 — 굽는 데 53ms 가 들어서, 바뀌지 않았으면
+  /// 아예 만들지 않고 여기까지 오지 않는다.
+  ///
+  /// rename 은 파일 하나 안에서만 원자적이다. 셋을 연달아 쓰다 앱이 죽으면
+  /// 레이어마다 마지막 1초가 다르게 남을 수 있는데, 그것은 파일이 깨진 것이
+  /// 아니라 "방금 그은 획 하나가 없는" 상태다. 폴더 단위 원자화는 그 복잡도를
+  /// 낼 값이 아니라고 판단했다.
+  Future<void> save(
+    Artwork artwork, {
+    List<Sticker> stickers = const [],
+    Uint8List? brushPng,
+  }) async {
     final dir = _dirFor(artwork.id);
     await dir.create(recursive: true);
 
@@ -32,6 +51,25 @@ class ArtworkRepository {
       flush: true,
     );
     await tmp.rename(_fileFor(artwork.id).path);
+
+    final stickersFile = _stickersFileFor(artwork.id);
+    if (stickers.isEmpty) {
+      if (stickersFile.existsSync()) await stickersFile.delete();
+    } else {
+      final stmp = File('${dir.path}/stickers.json.tmp');
+      await stmp.writeAsString(
+        const JsonEncoder.withIndent('  ')
+            .convert([for (final s in stickers) s.toJson()]),
+        flush: true,
+      );
+      await stmp.rename(stickersFile.path);
+    }
+
+    if (brushPng != null) {
+      final btmp = File('${dir.path}/brush.png.tmp');
+      await btmp.writeAsBytes(brushPng, flush: true);
+      await btmp.rename(_brushFileFor(artwork.id).path);
+    }
   }
 
   /// 작품 하나를 읽는다.
@@ -55,6 +93,38 @@ class ArtworkRepository {
     } on FormatException {
       return null;
     } on TypeError {
+      return null;
+    }
+  }
+
+  /// 스티커 목록. 없거나 내용이 깨졌으면 빈 목록.
+  ///
+  /// 파일 셋을 독립적으로 취급한다 — 스티커가 깨져도 채움과 브러시는 살아난다.
+  Future<List<Sticker>> loadStickers(String id) async {
+    final String text;
+    try {
+      text = await _stickersFileFor(id).readAsString();
+    } on PathNotFoundException {
+      return const [];
+    }
+
+    try {
+      final list = jsonDecode(text) as List<dynamic>;
+      return [
+        for (final e in list) Sticker.fromJson(e as Map<String, dynamic>),
+      ];
+    } on FormatException {
+      return const [];
+    } on TypeError {
+      return const [];
+    }
+  }
+
+  /// 구운 브러시 레이어. 없으면 null.
+  Future<Uint8List?> loadBrushPng(String id) async {
+    try {
+      return await _brushFileFor(id).readAsBytes();
+    } on PathNotFoundException {
       return null;
     }
   }

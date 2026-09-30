@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkumul/coloring/sticker_state.dart';
 import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
 
@@ -117,5 +119,55 @@ void main() {
 
     expect(all.map((a) => a.id), ['good'],
         reason: '한 폴더를 못 읽어도 목록은 나머지를 보여준다');
+  });
+
+  test('스티커를 따로 저장하고 읽는다', () async {
+    await repo.save(
+      sample(),
+      stickers: [
+        Sticker(instanceId: 'a', stickerId: 'star-01', x: 10, y: 20),
+      ],
+    );
+
+    final back = await repo.loadStickers('a1');
+    expect(back, hasLength(1));
+    expect(back.first.stickerId, 'star-01');
+    expect(back.first.x, 10);
+  });
+
+  test('스티커가 없으면 파일도 없고 빈 목록을 준다', () async {
+    await repo.save(sample());
+    expect(await repo.loadStickers('a1'), isEmpty);
+    expect(File('${root.path}/artworks/a1/stickers.json').existsSync(), isFalse);
+  });
+
+  test('브러시 PNG 를 주면 쓰고 안 주면 건드리지 않는다', () async {
+    final png = Uint8List.fromList([1, 2, 3, 4]);
+    await repo.save(sample(), brushPng: png);
+    expect(await repo.loadBrushPng('a1'), png);
+
+    // 두 번째 저장은 브러시를 안 준다 — 기존 파일이 그대로 있어야 한다.
+    await repo.save(sample());
+    expect(await repo.loadBrushPng('a1'), png,
+        reason: 'null 은 "지워라"가 아니라 "건드리지 마라"다');
+  });
+
+  test('브러시가 없으면 null 이다', () async {
+    await repo.save(sample());
+    expect(await repo.loadBrushPng('a1'), isNull);
+  });
+
+  test('브러시가 깨져도 채움과 스티커는 살아난다', () async {
+    await repo.save(
+      sample(),
+      stickers: [Sticker(instanceId: 'a', stickerId: 'star-01', x: 1, y: 2)],
+      brushPng: Uint8List.fromList([9, 9]),
+    );
+    // stickers.json 만 망가뜨린다
+    File('${root.path}/artworks/a1/stickers.json').writeAsStringSync('[[[');
+
+    expect(await repo.load('a1'), isNotNull, reason: '채움은 멀쩡해야 한다');
+    expect(await repo.loadStickers('a1'), isEmpty, reason: '깨진 스티커는 버린다');
+    expect(await repo.loadBrushPng('a1'), isNotNull);
   });
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:kkumul/coloring/coloring_controller.dart';
+import 'package:kkumul/coloring/sticker_state.dart';
 import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
@@ -203,7 +204,12 @@ class _NoopAutosave extends Autosave {
   _NoopAutosave(Directory root) : super(repository: ArtworkRepository(root));
 
   @override
-  void schedule(Artwork artwork) {}
+  void schedule(
+    Artwork artwork, {
+    List<Sticker> stickers = const [],
+    int brushRevision = 0,
+    BrushBaker? bakeBrush,
+  }) {}
 }
 
 /// 생명주기 배선만 본다. `flush()` 가 실제로 불렸는지만 기록하고 디스크는
@@ -214,7 +220,12 @@ class _RecordingAutosave extends Autosave {
   int flushCount = 0;
 
   @override
-  void schedule(Artwork artwork) {}
+  void schedule(
+    Artwork artwork, {
+    List<Sticker> stickers = const [],
+    int brushRevision = 0,
+    BrushBaker? bakeBrush,
+  }) {}
 
   @override
   Future<void> flush() async {
