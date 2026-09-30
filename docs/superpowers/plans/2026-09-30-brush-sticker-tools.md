@@ -535,8 +535,8 @@ MSG
 `app/test/brush_state_test.dart`:
 
 ```dart
-import 'dart:ui' show Offset;
-
+// Offset 은 flutter/painting 이 dart:ui 에서 재수출한다. dart:ui 를 따로
+// import 하면 분석기가 unnecessary_import 로 잡는다.
 import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkumul/coloring/brush_state.dart';
@@ -742,7 +742,7 @@ class BrushState {
 cd app && flutter test test/brush_state_test.dart
 ```
 
-Expected: PASS — 10개 테스트 통과
+Expected: PASS — 9개 테스트 통과
 
 - [ ] **Step 5: 커밋**
 
