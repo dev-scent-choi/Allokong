@@ -74,4 +74,30 @@ void main() {
     expect(b.isEmpty, isTrue);
     expect(b.strokes, isEmpty);
   });
+
+  test('같은 점이 연달아 있어도 터지지 않는다', () {
+    // 길이 0 선분에서 0 으로 나누면 NaN 이 나오고, NaN 비교는 조용히 false 라
+    // 크래시 없이 답만 틀린다.
+    final s = _line(const [Offset(10, 10), Offset(10, 10), Offset(50, 10)]);
+    expect(s.covers(const Offset(10, 10)), isTrue);
+    expect(s.covers(const Offset(30, 10)), isTrue, reason: '두 번째 선분 위');
+    expect(s.covers(const Offset(30, 40)), isFalse);
+  });
+
+  test('withPoint 는 원본을 건드리지 않고 새 획을 만든다', () {
+    const original = Stroke(
+      kind: BrushKind.crayon,
+      color: Color(0xFFEF7586),
+      width: 24,
+      points: [Offset(0, 0)],
+    );
+
+    final grown = original.withPoint(const Offset(10, 0));
+
+    expect(original.points, hasLength(1), reason: 'const 획이 그대로여야 한다');
+    expect(grown.points, hasLength(2));
+    expect(grown.points.last, const Offset(10, 0));
+    expect(grown.kind, original.kind);
+    expect(grown.width, original.width);
+  });
 }
