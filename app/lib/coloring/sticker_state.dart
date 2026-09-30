@@ -17,9 +17,16 @@ class Sticker {
 
   final double scale;
 
-  /// 항상 0. 포맷 호환을 위해 자리만 둔다 — 두 손가락으로 크기와 회전을 동시에
-  /// 다루는 것은 6~9세에게 어렵고 대개 의도치 않게 비뚤어진다. 나중에 포맷을
-  /// 바꾸지 않고 제스처만 추가할 수 있다.
+  /// 항상 `0` 이다. **생성자에서 강제한다** — 값을 받지 않는다.
+  ///
+  /// 포맷에는 남겨 둔다(`toJson` 이 계속 쓴다). 두 손가락으로 크기와 회전을
+  /// 동시에 다루는 것은 6~9세에게 어렵고 대개 의도치 않게 비뚤어지기 때문에
+  /// 지금은 제스처를 붙이지 않는다. 나중에 붙일 때는 이 강제를 풀기만 하면
+  /// 되고 저장된 파일을 고칠 필요가 없다.
+  ///
+  /// 주석으로만 "항상 0"이라고 적어 두면 손으로 고친 `stickers.json` 이나
+  /// 미래의 코드가 조용히 0 아닌 값을 들여보낸다. `scale` 은 모든 경로에서
+  /// 클램프하면서 이것만 말로 때우는 것은 앞뒤가 맞지 않는다.
   final double rotation;
 
   static const double baseSize = 160;
@@ -32,8 +39,8 @@ class Sticker {
     required this.x,
     required this.y,
     double scale = 1.0,
-    this.rotation = 0,
-  }) : scale = scale.clamp(minScale, maxScale);
+  })  : scale = scale.clamp(minScale, maxScale),
+        rotation = 0;
 
   double get size => baseSize * scale;
 
@@ -48,7 +55,6 @@ class Sticker {
         x: x ?? this.x,
         y: y ?? this.y,
         scale: scale ?? this.scale,
-        rotation: rotation,
       );
 
   Map<String, dynamic> toJson() => {
@@ -66,7 +72,6 @@ class Sticker {
         x: (j['x'] as num).toDouble(),
         y: (j['y'] as num).toDouble(),
         scale: (j['scale'] as num).toDouble(),
-        rotation: (j['rotation'] as num).toDouble(),
       );
 }
 

@@ -72,10 +72,24 @@ void main() {
     expect(back.stickers.last.instanceId, 'b');
   });
 
-  test('회전은 포맷에만 있고 항상 0 이다', () {
+  test('회전은 포맷에만 있고 어떤 경로로도 0 이 아닐 수 없다', () {
     final s = _at('a', 0, 0);
     expect(s.rotation, 0);
-    expect(s.toJson()['rotation'], 0);
+    expect(s.toJson()['rotation'], 0, reason: '포맷에는 남아 있어야 한다');
+
+    // 손으로 고쳤거나 미래 버전이 쓴 파일에서 0 아닌 값이 들어와도 0 으로.
+    final fromFile = Sticker.fromJson({
+      'instanceId': 'a',
+      'stickerId': 'star-01',
+      'x': 1.0,
+      'y': 2.0,
+      'scale': 1.0,
+      'rotation': 45.0,
+    });
+    expect(fromFile.rotation, 0, reason: '파일이 뭐라 하든 0 이다');
+
+    // copyWith 로도 새어 들어올 수 없다.
+    expect(s.copyWith(x: 9).rotation, 0);
   });
 
   test('배율은 범위 안으로 갇힌다', () {
