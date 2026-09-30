@@ -76,12 +76,20 @@ void main() {
   });
 
   test('같은 점이 연달아 있어도 터지지 않는다', () {
-    // 길이 0 선분에서 0 으로 나누면 NaN 이 나오고, NaN 비교는 조용히 false 라
-    // 크래시 없이 답만 틀린다.
-    final s = _line(const [Offset(10, 10), Offset(10, 10), Offset(50, 10)]);
-    expect(s.covers(const Offset(10, 10)), isTrue);
-    expect(s.covers(const Offset(30, 10)), isTrue, reason: '두 번째 선분 위');
-    expect(s.covers(const Offset(30, 40)), isFalse);
+    // 점이 둘이지만 같은 자리다 — points.length == 1 지름길을 타지 않고
+    // 길이 0 선분 하나만 남는다. 가드가 없으면 0 으로 나눠 NaN 이 되고,
+    // NaN 비교는 조용히 false 라 크래시 없이 답만 틀린다.
+    final only = _line(const [Offset(10, 10), Offset(10, 10)]);
+    expect(only.covers(const Offset(10, 10)), isTrue,
+        reason: '가드를 빼면 NaN 때문에 false 가 된다');
+    expect(only.covers(const Offset(10, 20)), isTrue, reason: '굵기 24 의 절반 안');
+    expect(only.covers(const Offset(10, 30)), isFalse);
+
+    // 길이 0 선분이 정상 선분과 섞여 있어도 정상 선분이 가려지지 않는다.
+    final mixed =
+        _line(const [Offset(10, 10), Offset(10, 10), Offset(50, 10)]);
+    expect(mixed.covers(const Offset(30, 10)), isTrue);
+    expect(mixed.covers(const Offset(30, 40)), isFalse);
   });
 
   test('withPoint 는 원본을 건드리지 않고 새 획을 만든다', () {
