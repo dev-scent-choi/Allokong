@@ -75,13 +75,13 @@ void main() {
     expect(b.strokes, isEmpty);
   });
 
-  test('같은 점이 연달아 있어도 터지지 않는다', () {
-    // 점이 둘이지만 같은 자리다 — points.length == 1 지름길을 타지 않고
-    // 길이 0 선분 하나만 남는다. 가드가 없으면 0 으로 나눠 NaN 이 되고,
-    // NaN 비교는 조용히 false 라 크래시 없이 답만 틀린다.
+  test('같은 점이 연달아 있으면 점 하나처럼 동작한다', () {
+    // 길이 0 선분만 남는 획이다(점이 둘이라 points.length == 1 지름길을 타지
+    // 않는다). 이것은 동작을 고정하는 테스트이지 len2 == 0 가드를 지키는
+    // 테스트가 아니다 — 그 가드는 Dart 의 clamp/NaN 동작 때문에 있으나 없으나
+    // 결과가 같아서 테스트로 구분할 수 없다. 구현 파일의 주석 참조.
     final only = _line(const [Offset(10, 10), Offset(10, 10)]);
-    expect(only.covers(const Offset(10, 10)), isTrue,
-        reason: '가드를 빼면 NaN 때문에 false 가 된다');
+    expect(only.covers(const Offset(10, 10)), isTrue);
     expect(only.covers(const Offset(10, 20)), isTrue, reason: '굵기 24 의 절반 안');
     expect(only.covers(const Offset(10, 30)), isFalse);
 

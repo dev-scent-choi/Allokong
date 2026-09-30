@@ -65,6 +65,12 @@ double _distanceToSegment(Offset p, Offset a, Offset b) {
   final abx = b.dx - a.dx;
   final aby = b.dy - a.dy;
   final len2 = abx * abx + aby * aby;
+  // 길이 0 선분 방어. Dart 에서는 이 가드가 없어도 답이 맞는다 —
+  // 0/0 = NaN 이고 num.clamp 는 compareTo 를 쓰는데 NaN 이 모든 값보다 크게
+  // 정렬돼 clamp(0,1) 이 1.0 을 돌려주며, abx == aby == 0 이라 투영점이 t 와
+  // 무관하게 a 가 되기 때문이다. **그래서 이 가드는 어떤 테스트로도 존재를
+  // 구분할 수 없다.** 그럼에도 남겨 두는 이유는 투영 공식을 나중에 바꿨을 때
+  // 조용히 NaN 이 새는 것을 막기 위해서다. 커버리지가 없다고 지우지 말 것.
   if (len2 == 0) return (p - a).distance;
   final t = (((p.dx - a.dx) * abx + (p.dy - a.dy) * aby) / len2).clamp(0.0, 1.0);
   return (p - Offset(a.dx + abx * t, a.dy + aby * t)).distance;
