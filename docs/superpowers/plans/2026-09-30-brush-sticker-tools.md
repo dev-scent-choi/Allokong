@@ -1704,22 +1704,25 @@ void main() {
   });
 
   test('지우개 획이 앞선 잉크를 지운다', () async {
+    // 캔버스를 16 폭으로 넓게 잡는다. 4 폭에서는 지우개 굵기 8 의 둥근 끝
+    // (반지름 4)이 캔버스 전체를 덮어 "지우지 않은 쪽"이 아예 존재할 수 없다.
+    // drawStroke 가 StrokeCap.round 를 쓰므로 획은 양 끝에서 반지름만큼 더 나간다.
     final mask = await buildPaintableMask(
-      RegionMap(4, 1, Uint16List.fromList([2, 2, 2, 2])),
+      RegionMap(16, 1, Uint16List(16)..fillRange(0, 16, 2)),
     );
     final brush = BrushState()
-      ..push(_across(4))
+      ..push(_across(16))
       ..push(const Stroke(
         kind: BrushKind.eraser,
         color: _red,
-        width: 8,
-        points: [ui.Offset(2.5, 0.5), ui.Offset(4, 0.5)],
+        width: 2,
+        points: [ui.Offset(12, 0.5), ui.Offset(16, 0.5)],
       ));
 
-    final px = await _render(4, brush, mask);
+    final px = await _render(16, brush, mask);
 
-    expect(px[0][3], greaterThan(0), reason: '지우지 않은 왼쪽은 남는다');
-    expect(px[3], [0, 0, 0, 0], reason: '지운 오른쪽은 비어야 한다');
+    expect(px[2][3], greaterThan(0), reason: '지우지 않은 왼쪽은 남는다');
+    expect(px[14], [0, 0, 0, 0], reason: '지운 오른쪽은 비어야 한다');
   });
 
   test('그리는 중인 획도 보인다', () async {
