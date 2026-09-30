@@ -526,7 +526,7 @@ MSG
 - Consumes: 없음
 - Produces:
   - `enum BrushKind { crayon, brush, eraser }`
-  - `class Stroke { BrushKind kind; Color color; double width; List<Offset> points; bool covers(Offset) }`
+  - `class Stroke { BrushKind kind; Color color; double width; List<Offset> points; bool covers(Offset); Stroke withPoint(Offset) }` — **불변이다.** `points` 를 제자리에서 고치지 않는다
   - `class BrushState { ui.Image? base; List<Stroke> strokes; Stroke? live; bool get isEmpty; bool hasInkAt(Offset); int revision; void clear() }`
   - `const double kCrayonWidth = 24, kBrushWidth = 48, kEraserWidth = 48;`
 
@@ -649,6 +649,14 @@ class Stroke {
   final Color color;
 
   final double width;
+
+  /// 획을 이루는 점들. **제자리에서 고치지 말 것.**
+  ///
+  /// `Stroke` 는 불변이다. `const Stroke(...)` 로 만들어지면 이 목록은 수정할 수
+  /// 없고, 거기에 `add` 를 하면 손가락이 움직이는 도중에 터진다. 게다가
+  /// `prefer_const_constructors` 린트가 켜져 있어 분석기가 `const` 를 붙이라고
+  /// 권한다 — 분석기를 깨끗하게 유지하면 크래시가 나는 구조가 된다.
+  /// 점을 더할 때는 [withPoint] 로 새 획을 만든다.
   final List<Offset> points;
 
   const Stroke({
@@ -657,6 +665,14 @@ class Stroke {
     required this.width,
     required this.points,
   });
+
+  /// 점 하나를 더한 새 획. 목록을 제자리에서 고치지 않는다.
+  Stroke withPoint(Offset p) => Stroke(
+        kind: kind,
+        color: color,
+        width: width,
+        points: [...points, p],
+      );
 
   /// [p] 가 이 획에 덮여 있는가.
   ///
@@ -3099,7 +3115,9 @@ import 'paintable_mask.dart';
 
     // 점이 촘촘해도 그림은 달라지지 않고 덮임 판정만 느려진다.
     if ((live.points.last - canvasPoint).distance < 4) return;
-    live.points.add(canvasPoint);
+    // Stroke 는 불변이다. 목록에 add 하지 말고 새 획으로 갈아끼운다 —
+    // const 로 만들어진 획이면 add 가 끌기 도중에 터진다.
+    _state.brush.live = live.withPoint(canvasPoint);
     notifyListeners();
   }
 
