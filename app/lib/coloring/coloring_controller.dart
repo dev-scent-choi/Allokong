@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart' show Color;
 
 import '../core/artwork.dart';
+import '../core/artwork_state.dart';
 import '../core/command.dart';
 import '../core/dohan_source.dart';
 import '../gallery/autosave.dart';
@@ -24,13 +25,14 @@ class ColoringController extends ChangeNotifier {
 
   DohanPackage? _dohan;
   String? _artworkId;
-  final FillState _fills = FillState();
+  final ArtworkState _state = ArtworkState();
   final UndoStack _undo = UndoStack();
   Color _selected = const Color(0xFFEF7586);
   int _openGeneration = 0;
 
   DohanPackage? get dohan => _dohan;
-  FillState get fills => _fills;
+  FillState get fills => _state.fills;
+  ArtworkState get state => _state;
   Color get selectedColor => _selected;
   bool get canUndo => _undo.canUndo;
   bool get isReady => _dohan != null;
@@ -57,8 +59,8 @@ class ColoringController extends ChangeNotifier {
     _dohan = dohan;
     _artworkId = artworkId;
     _undo.clear();
-    _fills.clear();
-    if (existing != null) _fills.loadJson(existing.fills);
+    _state.clear();
+    if (existing != null) _state.fills.loadJson(existing.fills);
     notifyListeners();
   }
 
@@ -75,7 +77,7 @@ class ColoringController extends ChangeNotifier {
     final id = regionAt(dohan.regions, canvasPoint);
     if (id < kRegionFirstFillable) return false;
 
-    final before = _fills.fillOf(id);
+    final before = _state.fills.fillOf(id);
     if (before == _selected) return false;
 
     _undo.push(
@@ -83,7 +85,7 @@ class ColoringController extends ChangeNotifier {
       // "Arguments of a constant creation must be constant expressions" 로
       // 컴파일이 깨진다. FillCommand 의 생성자가 const 인 것과는 별개다.
       FillCommand(regionId: id, before: before, after: _selected),
-      _fills,
+      _state,
     );
     _scheduleSave();
     notifyListeners();
@@ -91,7 +93,7 @@ class ColoringController extends ChangeNotifier {
   }
 
   bool undo() {
-    if (!_undo.undo(_fills)) return false;
+    if (!_undo.undo(_state)) return false;
     _scheduleSave();
     notifyListeners();
     return true;
@@ -109,7 +111,7 @@ class ColoringController extends ChangeNotifier {
     autosave.schedule(Artwork(
       id: id,
       dohanId: dohan.meta.id,
-      fills: _fills.toJson(),
+      fills: _state.fills.toJson(),
       updatedAt: DateTime.now().toUtc(),
     ));
   }
