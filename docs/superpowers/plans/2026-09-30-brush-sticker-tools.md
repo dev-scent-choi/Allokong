@@ -3150,9 +3150,9 @@ import 'paintable_mask.dart';
       commands.length == 1 ? commands.first : BatchCommand(commands),
       _state,
     );
-    _undosSinceChange = 0;
-    _scheduleSave();
-    notifyListeners();
+    // 태스크 11 이 만든 공통 처리. 되돌리기 예산 복구 + 저장 예약 + 다시 그리기를
+    // 한 자리에 모아 둔 것이라, 도구를 추가할 때 하나를 빠뜨릴 수 없다.
+    _afterChange();
   }
 
   /// 지우개가 지나간 자리에서 벗길 채움을 모은다.
@@ -3401,9 +3401,7 @@ import 'sticker_state.dart';
           StickerCommand(index: index, before: hit, after: null),
           _state,
         );
-        _undosSinceChange = 0;
-        _scheduleSave();
-        notifyListeners();
+        _afterChange();
         return;
       }
     }
@@ -3439,9 +3437,7 @@ import 'sticker_state.dart';
       ),
       _state,
     );
-    _undosSinceChange = 0;
-    _scheduleSave();
-    notifyListeners();
+    _afterChange();
   }
 
   void beginStickerDrag(Offset canvasPoint) {
@@ -3486,9 +3482,7 @@ import 'sticker_state.dart';
       StickerCommand(index: index, before: before, after: after),
       _state,
     );
-    _undosSinceChange = 0;
-    _scheduleSave();
-    notifyListeners();
+    _afterChange();
   }
 ```
 
