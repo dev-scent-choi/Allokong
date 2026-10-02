@@ -3386,6 +3386,10 @@ import 'sticker_state.dart';
 ```dart
   /// 끌기 시작 시점의 스티커. 손을 뗄 때 이것과 비교해 명령 하나를 만든다.
   Sticker? _dragBefore;
+
+  /// 스티커 instanceId 의 유일성을 보장하는 단조 증가 번호.
+  /// 타임스탬프 분해능만 믿으면 안 되는 이유는 addSticker 의 주석 참조.
+  int _stickerSeq = 0;
 ```
 
 3. `beginStroke` 의 **맨 앞**에 스티커 지우기를 넣는다 (지우개가 "맨 위 것"을 지우므로
@@ -3423,7 +3427,13 @@ import 'sticker_state.dart';
 
     final centre = dohan.regions.width / 2;
     final sticker = Sticker(
-      instanceId: '${DateTime.now().microsecondsSinceEpoch}',
+      // 타임스탬프만으로는 충돌한다. 윈도우의 DateTime.now() 는 분해능이
+      // 거칠어 연달아 부르면 같은 값을 돌려준다(실측: 세 번 연속 호출이 전부
+      // 동일). 그러면 `addSticker('star-01'); addSticker('heart-01');` 가
+      // 같은 instanceId 를 두 개 만들고, 되돌리기가 z 순서를 복원하지 못한다.
+      // 컨트롤러별 단조 증가 카운터를 붙여 유일성을 보장한다.
+      instanceId:
+          '${DateTime.now().microsecondsSinceEpoch}-${_stickerSeq++}',
       stickerId: stickerId,
       x: centre,
       y: centre,
