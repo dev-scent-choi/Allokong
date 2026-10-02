@@ -18,6 +18,7 @@ import 'brush_state.dart';
 import 'canvas_transform.dart';
 import 'fill_state.dart';
 import 'paintable_mask.dart';
+import 'sticker_state.dart';
 
 /// 도구 다섯 가지. 상위 스펙 9장의 아동 모드 도구 목록이다.
 enum ToolKind { bucket, crayon, brush, eraser, sticker }
@@ -54,6 +55,16 @@ class ColoringController extends ChangeNotifier {
 
   /// 유아 모드의 "연속 한 번" 제한을 세는 값. 새로 무언가를 하면 0 이 된다.
   int _undosSinceChange = 0;
+
+  /// 끌기 시작 시점의 스티커. 손을 뗄 때 이것과 비교해 명령 하나를 만든다.
+  Sticker? _dragBefore;
+
+  /// 같은 밀리초 안에 스티커가 여러 번 붙어도 instanceId 가 겹치지 않도록 하는
+  /// 카운터. 이 환경의 시계 분해능은 마이크로초 단위가 아니다 — 실측으로
+  /// `DateTime.now().microsecondsSinceEpoch` 를 연달아 불러도 같은 값이
+  /// 나온다. 타임스탬프만 쓰면 빠르게 두 번 붙인 스티커가 같은 instanceId 를
+  /// 받아, 하나를 지울 때 엉뚱한 자리의 것이 지워진다.
+  int _stickerSeq = 0;
 
   DohanPackage? get dohan => _dohan;
   FillState get fills => _state.fills;
@@ -166,6 +177,20 @@ class ColoringController extends ChangeNotifier {
       };
 
   void beginStroke(Offset canvasPoint) {
+    if (_tool == ToolKind.eraser) {
+      final hit = _state.stickers.topAt(canvasPoint);
+      if (hit != null) {
+        // 스티커를 떼려던 손짓이 밑의 그림까지 지우면 안 된다. 여기서 끝낸다.
+        final index = _state.stickers.indexOf(hit.instanceId);
+        _undo.push(
+          StickerCommand(index: index, before: hit, after: null),
+          _state,
+        );
+        _afterChange();
+        return;
+      }
+    }
+
     final kind = _strokeKind;
     if (kind == null || _dohan == null) return;
 
@@ -312,6 +337,82 @@ class ColoringController extends ChangeNotifier {
     // offsetInBytes 를 무시해 엉뚱한 자리에서 읽는다 — 계획 2 에서 에셋 로딩에
     // 같은 실수를 했다가 리뷰가 잡았다.
     return Uint8List.sublistView(data);
+  }
+
+  Sticker? stickerAt(Offset canvasPoint) =>
+      _state.stickers.topAt(canvasPoint);
+
+  /// 서랍에서 고른 스티커를 캔버스 한가운데에 놓는다.
+  ///
+  /// 놓는 동작이 실패할 수 없다는 것이 핵심이다 — 아이가 손을 어디서 떼든
+  /// 스티커는 이미 화면에 있고, 마음에 안 들면 끌면 된다.
+  void addSticker(String stickerId) {
+    final dohan = _dohan;
+    if (dohan == null) return;
+
+    final centre = dohan.regions.width / 2;
+    final sticker = Sticker(
+      instanceId:
+          '${DateTime.now().microsecondsSinceEpoch}-${_stickerSeq++}',
+      stickerId: stickerId,
+      x: centre,
+      y: centre,
+    );
+
+    _undo.push(
+      StickerCommand(
+        index: _state.stickers.stickers.length,
+        before: null,
+        after: sticker,
+      ),
+      _state,
+    );
+    _afterChange();
+  }
+
+  void beginStickerDrag(Offset canvasPoint) {
+    _dragBefore = _state.stickers.topAt(canvasPoint);
+  }
+
+  /// 손가락을 따라 바로 움직인다. 되돌리기 스택은 건드리지 않는다.
+  void updateStickerDrag({
+    required double x,
+    required double y,
+    double? scale,
+  }) {
+    final before = _dragBefore;
+    if (before == null) return;
+    final index = _state.stickers.indexOf(before.instanceId);
+    if (index < 0) return;
+
+    _state.stickers
+        .replaceAt(index, before.copyWith(x: x, y: y, scale: scale));
+    notifyListeners();
+  }
+
+  void endStickerDrag() {
+    final before = _dragBefore;
+    _dragBefore = null;
+    if (before == null) return;
+
+    final index = _state.stickers.indexOf(before.instanceId);
+    if (index < 0) return;
+
+    final after = _state.stickers.stickers[index];
+    if (after.x == before.x &&
+        after.y == before.y &&
+        after.scale == before.scale) {
+      return; // 제자리에서 손을 뗐다
+    }
+
+    // 스택에는 출발 → 도착 하나만 쌓는다. 중간 프레임 수백 개는 아이에게
+    // 되돌릴 단계가 아니다. 명령이 제 손으로 적용하도록 먼저 되돌려 둔다.
+    _state.stickers.replaceAt(index, before);
+    _undo.push(
+      StickerCommand(index: index, before: before, after: after),
+      _state,
+    );
+    _afterChange();
   }
 
   @override

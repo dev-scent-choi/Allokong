@@ -425,4 +425,96 @@ void main() {
     expect(afterUndo, isNot(afterDraw),
         reason: '지운 뒤의 브러시는 그리기 전과 달라야 한다');
   });
+
+  test('스티커를 붙이면 캔버스 한가운데에 놓인다', () {
+    c.selectTool(ToolKind.sticker);
+    c.addSticker('star-01');
+
+    final list = c.state.stickers.stickers;
+    expect(list, hasLength(1));
+    expect(list.first.stickerId, 'star-01');
+    expect(list.first.x, 2, reason: '가짜 도안이 4 폭이므로 한가운데는 2');
+  });
+
+  test('붙인 스티커를 되돌리면 사라진다', () {
+    c.addSticker('star-01');
+    expect(c.undo(), isTrue);
+    expect(c.state.stickers.stickers, isEmpty);
+  });
+
+  test('같은 그림을 여러 번 붙일 수 있다', () {
+    c.addSticker('star-01');
+    c.addSticker('star-01');
+    final list = c.state.stickers.stickers;
+    expect(list, hasLength(2));
+    expect(list.first.instanceId, isNot(list.last.instanceId));
+  });
+
+  test('스티커를 끌어 옮긴 뒤 되돌리면 제자리로 간다', () {
+    c.addSticker('star-01');
+    final start = c.state.stickers.stickers.first;
+
+    c.beginStickerDrag(Offset(start.x, start.y));
+    c.updateStickerDrag(x: 3, y: 1);
+    c.endStickerDrag();
+
+    expect(c.state.stickers.stickers.first.x, 3);
+
+    expect(c.undo(), isTrue);
+    expect(c.state.stickers.stickers.first.x, start.x);
+    expect(c.state.stickers.stickers, hasLength(1), reason: '사라지면 안 된다');
+  });
+
+  test('끄는 동안에는 되돌리기 스택이 늘지 않는다', () {
+    c.addSticker('star-01');
+    final start = c.state.stickers.stickers.first;
+
+    c.beginStickerDrag(Offset(start.x, start.y));
+    c.updateStickerDrag(x: 1, y: 1);
+    c.updateStickerDrag(x: 2, y: 2);
+    c.updateStickerDrag(x: 3, y: 3);
+    c.endStickerDrag();
+
+    // 붙인 것 하나 + 옮긴 것 하나 = 되돌리기 두 번이면 아무것도 없어야 한다.
+    expect(c.undo(), isTrue);
+    expect(c.undo(), isTrue);
+    expect(c.undo(), isFalse);
+  });
+
+  test('제자리에서 손을 떼면 아무 일도 없다', () {
+    c.addSticker('star-01');
+    final start = c.state.stickers.stickers.first;
+
+    c.beginStickerDrag(Offset(start.x, start.y));
+    c.endStickerDrag();
+
+    expect(c.undo(), isTrue, reason: '붙인 것만 되돌아간다');
+    expect(c.state.stickers.stickers, isEmpty);
+  });
+
+  test('빈 곳을 끌면 아무 일도 없다', () {
+    c.addSticker('star-01');
+    c.beginStickerDrag(const Offset(999, 999));
+    c.updateStickerDrag(x: 0, y: 0);
+    c.endStickerDrag();
+
+    expect(c.state.stickers.stickers.first.x, 2, reason: '움직이지 않았다');
+  });
+
+  test('스티커를 지우개로 떼면 되돌리기로 제자리에 돌아온다', () {
+    c.addSticker('star-01');
+    c.addSticker('heart-01');
+
+    c.selectTool(ToolKind.eraser);
+    final first = c.state.stickers.stickers.first;
+    c.beginStroke(Offset(first.x, first.y));
+    c.endStroke();
+
+    expect(c.state.stickers.stickers, hasLength(1));
+
+    expect(c.undo(), isTrue);
+    expect(c.state.stickers.stickers.map((s) => s.stickerId),
+        ['star-01', 'heart-01'],
+        reason: 'z 순서까지 복원해야 한다');
+  });
 }
