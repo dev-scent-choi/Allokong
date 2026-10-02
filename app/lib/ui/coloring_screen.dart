@@ -153,7 +153,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 selectedIndex: _paletteIndex,
                 onPickIndex: (i) {
                   setState(() => _paletteIndex = i);
-                  c.pickColor(paletteShades[Shade.base]![i]);
+                  c.pickColorIndex(i);
                 },
               ),
             ),

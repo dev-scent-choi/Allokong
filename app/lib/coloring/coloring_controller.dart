@@ -10,8 +10,13 @@ import '../core/artwork_state.dart';
 import '../core/command.dart';
 import '../core/dohan_source.dart';
 import '../gallery/autosave.dart';
+import '../settings/settings.dart';
+import '../ui/palette_shades.dart';
 import 'canvas_transform.dart';
 import 'fill_state.dart';
+
+/// 도구 다섯 가지. 상위 스펙 9장의 아동 모드 도구 목록이다.
+enum ToolKind { bucket, crayon, brush, eraser, sticker }
 
 /// 색칠 화면의 상태를 한곳에 묶는다.
 ///
@@ -20,21 +25,41 @@ import 'fill_state.dart';
 class ColoringController extends ChangeNotifier {
   final DohanSource source;
   final Autosave autosave;
+  AgeMode ageMode;
 
-  ColoringController({required this.source, required this.autosave});
+  ColoringController({
+    required this.source,
+    required this.autosave,
+    this.ageMode = AgeMode.toddler,
+  });
 
   DohanPackage? _dohan;
   String? _artworkId;
   final ArtworkState _state = ArtworkState();
   final UndoStack _undo = UndoStack();
-  Color _selected = const Color(0xFFEF7586);
   int _openGeneration = 0;
+
+  ToolKind _tool = ToolKind.bucket;
+  Shade _shade = Shade.base;
+  int _colorIndex = 0;
+
+  /// 유아 모드의 "연속 한 번" 제한을 세는 값. 새로 무언가를 하면 0 이 된다.
+  int _undosSinceChange = 0;
 
   DohanPackage? get dohan => _dohan;
   FillState get fills => _state.fills;
   ArtworkState get state => _state;
-  Color get selectedColor => _selected;
-  bool get canUndo => _undo.canUndo;
+  ToolKind get tool => _tool;
+  Shade get shade => _shade;
+  int get colorIndex => _colorIndex;
+
+  /// 고른 자리와 명도가 만나는 색.
+  Color get selectedColor => paletteShades[_shade]![_colorIndex];
+
+  /// 유아 모드는 연속 한 번만 되돌린다(상위 스펙 9장). 내부 스택은 동일하다.
+  bool get canUndo =>
+      _undo.canUndo &&
+      !(ageMode == AgeMode.toddler && _undosSinceChange >= 1);
   bool get isReady => _dohan != null;
 
   /// 도안을 열고, 이어 그리던 작품이 있으면 그 상태를 얹는다.
@@ -64,13 +89,33 @@ class ColoringController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void pickColor(Color color) {
-    _selected = color;
+  void selectTool(ToolKind next) {
+    if (_tool == next) return;
+    _tool = next;
+    notifyListeners();
+  }
+
+  /// 앱바의 명도 버튼. 밝게 → 기본 → 어둡게 → 밝게.
+  ///
+  /// 고른 **자리**는 그대로 두고 색만 갈아끼운다. 아이가 고른 것은 "네 번째
+  /// 크레용"이지 특정 hex 가 아니다.
+  void cycleShade() {
+    _shade = _shade.next;
+    notifyListeners();
+  }
+
+  void pickColorIndex(int index) {
+    if (index < 0 || index >= paletteShades[_shade]!.length) return;
+    _colorIndex = index;
     notifyListeners();
   }
 
   /// 캔버스 좌표를 칠한다. 실제로 바뀐 것이 있으면 true.
   bool tapAt(Offset canvasPoint) {
+    // 양동이일 때만 탭으로 칠한다. 크레용·붓·지우개는 끌어서 쓰는 도구고,
+    // 스티커는 서랍에서 고른다.
+    if (_tool != ToolKind.bucket) return false;
+
     final dohan = _dohan;
     if (dohan == null) return false;
 
@@ -78,22 +123,25 @@ class ColoringController extends ChangeNotifier {
     if (id < kRegionFirstFillable) return false;
 
     final before = _state.fills.fillOf(id);
-    if (before == _selected) return false;
+    if (before == selectedColor) return false;
 
     _undo.push(
-      // const 를 붙이면 안 된다 — id·before·_selected 가 전부 런타임 값이라
+      // const 를 붙이면 안 된다 — id·before·selectedColor 가 전부 런타임 값이라
       // "Arguments of a constant creation must be constant expressions" 로
       // 컴파일이 깨진다. FillCommand 의 생성자가 const 인 것과는 별개다.
-      FillCommand(regionId: id, before: before, after: _selected),
+      FillCommand(regionId: id, before: before, after: selectedColor),
       _state,
     );
+    _undosSinceChange = 0;
     _scheduleSave();
     notifyListeners();
     return true;
   }
 
   bool undo() {
+    if (!canUndo) return false;
     if (!_undo.undo(_state)) return false;
+    _undosSinceChange++;
     _scheduleSave();
     notifyListeners();
     return true;

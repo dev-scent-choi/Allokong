@@ -9,6 +9,8 @@ import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
 import 'package:kkumul/gallery/autosave.dart';
+import 'package:kkumul/settings/settings.dart';
+import 'package:kkumul/ui/palette_shades.dart';
 import 'package:image/image.dart' as img;
 
 /// 좌/우 두 영역만 있는 가짜 도안. 에셋 없이 컨트롤러를 시험한다.
@@ -58,6 +60,7 @@ void main() {
         repository: ArtworkRepository(root),
         debounce: const Duration(milliseconds: 20),
       ),
+      ageMode: AgeMode.child,
     );
     await c.open(dohanId: 'fake', artworkId: 'w1');
   });
@@ -73,7 +76,7 @@ void main() {
   });
 
   test('탭하면 그 영역이 선택한 색으로 칠해진다', () {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
 
     expect(c.tapAt(const Offset(0.5, 0.5)), isTrue);
 
@@ -82,9 +85,9 @@ void main() {
   });
 
   test('영역마다 다른 색을 칠할 수 있다', () {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
-    c.pickColor(const Color(0xFF6CAEE0));
+    c.pickColorIndex(3);
     c.tapAt(const Offset(3.5, 0.5));
 
     expect(c.fills.fillOf(2), const Color(0xFFEF7586));
@@ -92,7 +95,7 @@ void main() {
   });
 
   test('같은 색을 다시 칠하면 아무 일도 없다', () {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
 
     expect(c.tapAt(const Offset(0.5, 0.5)), isFalse,
@@ -101,7 +104,7 @@ void main() {
   });
 
   test('캔버스 밖을 누르면 아무 일도 없다', () {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
 
     expect(c.tapAt(const Offset(-5, -5)), isFalse);
     expect(c.fills.filledCount, 0);
@@ -109,7 +112,7 @@ void main() {
   });
 
   test('되돌리면 직전 상태로 간다', () {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
 
     expect(c.undo(), isTrue);
@@ -119,7 +122,7 @@ void main() {
   });
 
   test('칠하면 자동 저장이 예약되고, 닫으면 파일이 남는다', () async {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
 
     await c.close();
@@ -153,12 +156,12 @@ void main() {
   });
 
   test('다른 도안으로 갈아타도 앞 작품의 마지막 칠이 남는다', () async {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
 
     // 디바운스가 끝나기 전에 갈아탄다 — 아이가 칠하자마자 다른 도안을 고르는 경우다.
     await c.open(dohanId: 'fake', artworkId: 'w2');
-    c.pickColor(const Color(0xFF6CAEE0));
+    c.pickColorIndex(3);
     c.tapAt(const Offset(0.5, 0.5));
     await c.close();
 
@@ -178,7 +181,7 @@ void main() {
       ),
     );
     await one.open(dohanId: 'fake', artworkId: 'w3');
-    one.pickColor(const Color(0xFF63B98B));
+    one.pickColorIndex(4);
     one.tapAt(const Offset(0.5, 0.5));
 
     one.dispose();
@@ -190,9 +193,9 @@ void main() {
   });
 
   test('덧칠한 뒤 되돌리면 그 전 색으로 돌아간다', () {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
-    c.pickColor(const Color(0xFF6CAEE0));
+    c.pickColorIndex(3);
     c.tapAt(const Offset(0.5, 0.5));
 
     expect(c.undo(), isTrue);
@@ -202,7 +205,7 @@ void main() {
   });
 
   test('탭만 하고 두면 디바운스가 끝난 뒤 저장된다', () async {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
 
     // close() 를 부르지 않는다 — 타이머가 스스로 쓰는지 본다.
@@ -214,7 +217,7 @@ void main() {
   });
 
   test('다른 도안을 열면 앞선 되돌리기 기록이 남지 않는다', () async {
-    c.pickColor(const Color(0xFFEF7586));
+    c.pickColorIndex(0);
     c.tapAt(const Offset(0.5, 0.5));
     expect(c.canUndo, isTrue);
 
@@ -222,5 +225,78 @@ void main() {
 
     expect(c.canUndo, isFalse, reason: '새로 연 도안은 앞 도안을 되돌릴 수 없다');
     expect(c.fills.filledCount, 0);
+  });
+
+  test('처음 도구는 양동이다', () {
+    expect(c.tool, ToolKind.bucket);
+  });
+
+  test('도구를 고르면 바뀐다', () {
+    c.selectTool(ToolKind.crayon);
+    expect(c.tool, ToolKind.crayon);
+  });
+
+  test('색은 자리로 고르고 명도가 곱해진다', () {
+    c.pickColorIndex(4);
+    expect(c.colorIndex, 4);
+    expect(c.selectedColor, paletteShades[Shade.base]![4]);
+  });
+
+  test('명도를 누르면 고른 자리는 그대로고 색만 바뀐다', () {
+    c.pickColorIndex(4);
+    c.cycleShade();
+
+    expect(c.colorIndex, 4, reason: '아이가 고른 자리는 유지된다');
+    expect(c.shade, Shade.dark, reason: 'base 다음은 dark');
+    expect(c.selectedColor, paletteShades[Shade.dark]![4]);
+  });
+
+  test('명도는 한 바퀴 돈다', () {
+    c.cycleShade();
+    c.cycleShade();
+    expect(c.shade, Shade.light);
+    c.cycleShade();
+    expect(c.shade, Shade.base);
+  });
+
+  test('양동이가 아니면 탭해도 칠해지지 않는다', () {
+    c.selectTool(ToolKind.crayon);
+    expect(c.tapAt(const Offset(0.5, 0.5)), isFalse,
+        reason: '크레용은 끌어서 그리는 도구다');
+    expect(c.fills.filledCount, 0);
+  });
+
+  test('유아 모드는 연속 한 번만 되돌린다', () {
+    c.ageMode = AgeMode.toddler;
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+    c.tapAt(const Offset(3.5, 0.5));
+
+    expect(c.undo(), isTrue);
+    expect(c.undo(), isFalse, reason: '상위 스펙 9장 — 유아는 한 단계');
+    expect(c.canUndo, isFalse, reason: '버튼도 꺼져야 한다');
+  });
+
+  test('유아 모드도 새로 칠하면 다시 한 번 되돌릴 수 있다', () {
+    c.ageMode = AgeMode.toddler;
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+    c.undo();
+    expect(c.undo(), isFalse);
+
+    c.tapAt(const Offset(3.5, 0.5));
+    expect(c.canUndo, isTrue);
+    expect(c.undo(), isTrue);
+  });
+
+  test('아동 모드는 계속 되돌린다', () {
+    c.ageMode = AgeMode.child;
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+    c.tapAt(const Offset(3.5, 0.5));
+
+    expect(c.undo(), isTrue);
+    expect(c.undo(), isTrue);
+    expect(c.undo(), isFalse, reason: '더 없어서 false 다');
   });
 }
