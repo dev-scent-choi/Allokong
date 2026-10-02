@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:dohan_core/dohan_core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkumul/coloring/brush_state.dart';
 import 'package:kkumul/coloring/coloring_controller.dart';
 import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
@@ -306,5 +307,122 @@ void main() {
     expect(c.undo(), isTrue);
     expect(c.undo(), isTrue);
     expect(c.undo(), isFalse, reason: '더 없어서 false 다');
+  });
+
+  test('크레용으로 끌면 획이 남는다', () {
+    c.selectTool(ToolKind.crayon);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.extendStroke(const Offset(3.5, 0.5));
+    c.endStroke();
+
+    expect(c.state.brush.strokes, hasLength(1));
+    expect(c.state.brush.strokes.first.kind, BrushKind.crayon);
+    expect(c.state.brush.live, isNull, reason: '손을 떼면 live 가 비워진다');
+  });
+
+  test('그리는 중에는 live 에 들어 있다', () {
+    c.selectTool(ToolKind.brush);
+    c.beginStroke(const Offset(0.5, 0.5));
+    expect(c.state.brush.live, isNotNull);
+    expect(c.state.brush.strokes, isEmpty, reason: '아직 명령이 아니다');
+    c.endStroke();
+    expect(c.state.brush.strokes, hasLength(1));
+  });
+
+  test('획을 되돌리면 사라진다', () {
+    c.selectTool(ToolKind.crayon);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+
+    expect(c.undo(), isTrue);
+    expect(c.state.brush.strokes, isEmpty);
+  });
+
+  test('너무 촘촘한 점은 버린다', () {
+    // 점이 촘촘해도 그림은 달라지지 않고 덮임 판정만 느려진다.
+    c.selectTool(ToolKind.brush);
+    c.beginStroke(const Offset(0, 0));
+    c.extendStroke(const Offset(1, 0));
+    c.extendStroke(const Offset(2, 0));
+    c.endStroke();
+
+    expect(c.state.brush.strokes.first.points, hasLength(1),
+        reason: '4px 미만은 버린다');
+  });
+
+  test('양동이일 때는 끌어도 획이 생기지 않는다', () {
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+    expect(c.state.brush.strokes, isEmpty);
+  });
+
+  test('지우개로 칠한 영역을 문지르면 색이 벗겨진다', () {
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+    expect(c.fills.fillOf(2), isNotNull);
+
+    c.selectTool(ToolKind.eraser);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+
+    expect(c.fills.fillOf(2), isNull);
+  });
+
+  test('지우개 한 손짓은 되돌리기 한 번에 전부 돌아온다', () {
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+    c.tapAt(const Offset(3.5, 0.5));
+    expect(c.fills.filledCount, 2);
+
+    c.selectTool(ToolKind.eraser);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.extendStroke(const Offset(3.5, 0.5));
+    c.endStroke();
+    expect(c.fills.filledCount, 0);
+
+    expect(c.undo(), isTrue);
+    expect(c.fills.filledCount, 2, reason: '묶음이므로 한 번에 둘 다 돌아온다');
+  });
+
+  test('브러시 잉크가 있는 자리는 채움을 벗기지 않는다', () {
+    // "손가락 밑의 맨 위 것을 지운다" — 잉크가 위에 있으면 잉크만 지운다.
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+
+    c.selectTool(ToolKind.crayon);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+
+    c.selectTool(ToolKind.eraser);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+
+    expect(c.fills.fillOf(2), isNotNull,
+        reason: '잉크가 덮고 있었으므로 채움은 남는다');
+  });
+
+  test('도안을 열면 마스크가 만들어진다', () {
+    expect(c.paintableMask, isNotNull);
+    expect(c.paintableMask!.width, 4, reason: '가짜 도안이 4x2 다');
+  });
+
+  test('브러시를 전부 지우면 저장된 브러시도 비워진다', () async {
+    // null 은 "파일을 건드리지 마라"라는 뜻이다. 빈 브러시에 null 을 돌려주면
+    // 낡은 brush.png 가 남아, 앱을 껐다 켠 아이에게 지운 자국이 되살아난다.
+    c.selectTool(ToolKind.crayon);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+    await c.close();
+
+    final afterDraw = await ArtworkRepository(root).loadBrushPng('w1');
+    expect(afterDraw, isNotNull, reason: '그렸으니 파일이 생긴다');
+
+    expect(c.undo(), isTrue);
+    await c.close();
+
+    final afterUndo = await ArtworkRepository(root).loadBrushPng('w1');
+    expect(afterUndo, isNotNull, reason: '파일은 남되 내용이 바뀌어야 한다');
+    expect(afterUndo, isNot(afterDraw),
+        reason: '지운 뒤의 브러시는 그리기 전과 달라야 한다');
   });
 }

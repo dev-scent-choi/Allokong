@@ -44,6 +44,12 @@ class Autosave {
   /// 지금까지 실제로 파일을 쓴 횟수. 디바운스가 동작하는지 확인하는 용도다.
   int get saveCount => _saveCount;
 
+  /// 지금 상태가 이미 디스크에 있다고 표시한다.
+  ///
+  /// 작품을 막 열었을 때 부른다. 이게 없으면 손도 대지 않은 작품이 첫 저장에서
+  /// 빈 브러시를 괜히 굽는다(실측 53ms).
+  void markBrushWritten(int revision) => _writtenBrushRevision = revision;
+
   void schedule(
     Artwork artwork, {
     List<Sticker> stickers = const [],

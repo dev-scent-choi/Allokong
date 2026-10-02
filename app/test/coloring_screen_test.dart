@@ -171,7 +171,14 @@ void main() {
       source: FakeDohanSource(),
       autosave: autosave,
     );
-    await lifecycleController.open(dohanId: 'fake', artworkId: 'w9');
+    // open() 이 이제 buildPaintableMask 를 await 한다. 그것은 엔진 콜백
+    // (ui.decodeImageFromPixels)이라 testWidgets 본문의 FakeAsync 아래에서는
+    // 영영 완료되지 않는다 — 펌프해 줄 것이 없으면 그대로 멈춘다.
+    // setUp 은 실제 존에서 돌기 때문에 다른 테스트는 영향이 없고, 본문에서
+    // 직접 open() 을 부르는 것은 이 테스트뿐이다.
+    await tester.runAsync(() async {
+      await lifecycleController.open(dohanId: 'fake', artworkId: 'w9');
+    });
     addTearDown(lifecycleController.dispose);
 
     await tester.pumpWidget(MaterialApp(

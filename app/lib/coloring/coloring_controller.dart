@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'dart:ui' show Offset;
 
 import 'package:dohan_core/dohan_core.dart';
@@ -12,8 +13,11 @@ import '../core/dohan_source.dart';
 import '../gallery/autosave.dart';
 import '../settings/settings.dart';
 import '../ui/palette_shades.dart';
+import 'brush_painter.dart';
+import 'brush_state.dart';
 import 'canvas_transform.dart';
 import 'fill_state.dart';
+import 'paintable_mask.dart';
 
 /// 도구 다섯 가지. 상위 스펙 9장의 아동 모드 도구 목록이다.
 enum ToolKind { bucket, crayon, brush, eraser, sticker }
@@ -39,6 +43,11 @@ class ColoringController extends ChangeNotifier {
   final UndoStack _undo = UndoStack();
   int _openGeneration = 0;
 
+  ui.Image? _mask;
+
+  /// 이번 지우개 손짓에서 벗길 영역과 그 이전 색.
+  final Map<int, Color?> _erasing = {};
+
   ToolKind _tool = ToolKind.bucket;
   Shade _shade = Shade.base;
   int _colorIndex = 0;
@@ -49,6 +58,9 @@ class ColoringController extends ChangeNotifier {
   DohanPackage? get dohan => _dohan;
   FillState get fills => _state.fills;
   ArtworkState get state => _state;
+
+  /// 칠할 수 있는 픽셀만 불투명한 마스크. 브러시 합성에 쓴다.
+  ui.Image? get paintableMask => _mask;
   ToolKind get tool => _tool;
   Shade get shade => _shade;
   int get colorIndex => _colorIndex;
@@ -82,10 +94,13 @@ class ColoringController extends ChangeNotifier {
     if (generation != _openGeneration) return;
 
     _dohan = dohan;
+    _mask?.dispose();
+    _mask = await buildPaintableMask(dohan.regions);
     _artworkId = artworkId;
     _undo.clear();
     _state.clear();
     if (existing != null) _state.fills.loadJson(existing.fills);
+    autosave.markBrushWritten(_state.brush.revision);
     notifyListeners();
   }
 
@@ -136,6 +151,93 @@ class ColoringController extends ChangeNotifier {
     return true;
   }
 
+  double get _strokeWidth => switch (_tool) {
+        ToolKind.crayon => kCrayonWidth,
+        ToolKind.brush => kBrushWidth,
+        ToolKind.eraser => kEraserWidth,
+        _ => kCrayonWidth,
+      };
+
+  BrushKind? get _strokeKind => switch (_tool) {
+        ToolKind.crayon => BrushKind.crayon,
+        ToolKind.brush => BrushKind.brush,
+        ToolKind.eraser => BrushKind.eraser,
+        _ => null,
+      };
+
+  void beginStroke(Offset canvasPoint) {
+    final kind = _strokeKind;
+    if (kind == null || _dohan == null) return;
+
+    _erasing.clear();
+    _state.brush.live = Stroke(
+      kind: kind,
+      color: selectedColor,
+      width: _strokeWidth,
+      points: [canvasPoint],
+    );
+    _collectErase(canvasPoint);
+    notifyListeners();
+  }
+
+  void extendStroke(Offset canvasPoint) {
+    final live = _state.brush.live;
+    if (live == null) return;
+
+    // 지우개 판정은 **점을 버리기 전에** 한다. 점을 버리는 것은 획을 매끄럽게
+    // 하려는 것이지 "거기를 지나가지 않았다"는 뜻이 아니다. 뒤에 두면 좁은
+    // 캔버스에서 지나간 영역이 통째로 안 지워진다.
+    _collectErase(canvasPoint);
+
+    // 점이 촘촘해도 그림은 달라지지 않고 덮임 판정만 느려진다.
+    if ((live.points.last - canvasPoint).distance < 4) return;
+    // Stroke 는 불변이다. 목록에 add 하지 말고 새 획으로 갈아끼운다 —
+    // const 로 만들어진 획이면 add 가 끌기 도중에 터진다.
+    _state.brush.live = live.withPoint(canvasPoint);
+    notifyListeners();
+  }
+
+  void endStroke() {
+    final live = _state.brush.live;
+    if (live == null) return;
+    _state.brush.live = null;
+
+    final commands = <Command>[StrokeCommand(live)];
+    for (final e in _erasing.entries) {
+      commands.add(FillCommand(regionId: e.key, before: e.value, after: null));
+    }
+    _erasing.clear();
+
+    // 지우개 한 손짓이 획 하나와 채움 여러 개를 만들 수 있다. 아이는 되돌리기
+    // 한 번에 그 손짓 전체가 돌아오기를 기대한다.
+    _undo.push(
+      commands.length == 1 ? commands.first : BatchCommand(commands),
+      _state,
+    );
+    // 태스크 11 이 만든 공통 처리. 되돌리기 예산 복구 + 저장 예약 + 다시 그리기를
+    // 한 자리에 모아 둔 것이라, 도구를 추가할 때 하나를 빠뜨릴 수 없다.
+    _afterChange();
+  }
+
+  /// 지우개가 지나간 자리에서 벗길 채움을 모은다.
+  ///
+  /// 브러시 잉크가 그 점을 덮고 있으면 채움은 건드리지 않는다 — "손가락 밑의
+  /// 맨 위 것"을 지우는 것이므로, 잉크가 위에 있으면 잉크만 지워진다.
+  void _collectErase(Offset p) {
+    if (_tool != ToolKind.eraser) return;
+    final dohan = _dohan;
+    if (dohan == null) return;
+    if (_state.brush.hasInkAt(p)) return;
+
+    final id = regionAt(dohan.regions, p);
+    if (id < kRegionFirstFillable) return;
+    if (_erasing.containsKey(id)) return;
+
+    final before = _state.fills.fillOf(id);
+    if (before == null) return;
+    _erasing[id] = before;
+  }
+
   bool undo() {
     if (!canUndo) return false;
     if (!_undo.undo(_state)) return false;
@@ -167,16 +269,55 @@ class ColoringController extends ChangeNotifier {
     final dohan = _dohan;
     final id = _artworkId;
     if (dohan == null || id == null) return;
-    autosave.schedule(Artwork(
-      id: id,
-      dohanId: dohan.meta.id,
-      fills: _state.fills.toJson(),
-      updatedAt: DateTime.now().toUtc(),
-    ));
+    autosave.schedule(
+      Artwork(
+        id: id,
+        dohanId: dohan.meta.id,
+        fills: _state.fills.toJson(),
+        updatedAt: DateTime.now().toUtc(),
+      ),
+      stickers: _state.stickers.stickers,
+      brushRevision: _state.brush.revision,
+      bakeBrush: _bakeBrush,
+    );
+  }
+
+  /// 브러시 레이어를 PNG 로 굽는다. 자동 저장이 **실제로 쓸 때만** 부른다 —
+  /// 실측 53ms 라 탭마다 하면 끊긴다.
+  ///
+  /// 빈 브러시라도 굽는다. `null` 은 "파일을 건드리지 마라"는 뜻이지 "비었다"는
+  /// 뜻이 아니다 — 전부 지운 뒤 null 을 돌려주면 낡은 brush.png 가 그대로 남아,
+  /// 앱을 껐다 켠 아이에게 지운 자국이 되살아난다. 빈 브러시는 완전히 투명한
+  /// PNG 로 구워지며, 그런 이미지는 거의 압축되어 저장 비용이 미미하다.
+  Future<Uint8List?> _bakeBrush() async {
+    final dohan = _dohan;
+    if (dohan == null) return null;
+
+    final size = dohan.regions.width;
+    final rec = ui.PictureRecorder();
+    final canvas = ui.Canvas(rec);
+    BrushPainter.paint(
+      canvas,
+      ui.Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble()),
+      _state.brush,
+      _mask,
+    );
+    final picture = rec.endRecording();
+    final image = await picture.toImage(size, size);
+    picture.dispose();
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (data == null) return null;
+    // ByteData 는 더 큰 버퍼의 조각일 수 있다. .buffer 를 그대로 쓰면
+    // offsetInBytes 를 무시해 엉뚱한 자리에서 읽는다 — 계획 2 에서 에셋 로딩에
+    // 같은 실수를 했다가 리뷰가 잡았다.
+    return Uint8List.sublistView(data);
   }
 
   @override
   void dispose() {
+    _mask?.dispose();
+    _mask = null;
     // dispose 는 동기라 flush 를 기다릴 수 없다. 그렇다고 autosave 를 그냥
     // 버리면 예약돼 있던 마지막 탭이 조용히 사라진다 — 아이가 칠하자마자
     // 화면을 닫는 것이 정확히 그 상황이다. 쓰기를 먼저 걸어 두고, 그것이 끝난
