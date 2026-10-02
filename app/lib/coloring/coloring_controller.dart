@@ -132,9 +132,7 @@ class ColoringController extends ChangeNotifier {
       FillCommand(regionId: id, before: before, after: selectedColor),
       _state,
     );
-    _undosSinceChange = 0;
-    _scheduleSave();
-    notifyListeners();
+    _afterChange();
     return true;
   }
 
@@ -145,6 +143,19 @@ class ColoringController extends ChangeNotifier {
     _scheduleSave();
     notifyListeners();
     return true;
+  }
+
+  /// 조작 하나가 끝났을 때 공통으로 하는 일.
+  ///
+  /// 되돌리기 예산을 되살리고, 저장을 예약하고, 화면을 다시 그린다. 셋을 따로
+  /// 두면 나중에 도구를 추가하는 사람이 하나를 빠뜨린다 — 특히
+  /// `_undosSinceChange = 0` 을 빠뜨리면 아이가 새로 그린 뒤에도 되돌리기가
+  /// 막혀 있고, 그것을 잡는 테스트는 없다. 브러시·스티커를 붙이는 태스크도
+  /// 반드시 이것을 부른다.
+  void _afterChange() {
+    _undosSinceChange = 0;
+    _scheduleSave();
+    notifyListeners();
   }
 
   /// 화면을 떠나기 전에 예약된 저장을 마무리한다.

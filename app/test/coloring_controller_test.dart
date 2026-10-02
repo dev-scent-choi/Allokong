@@ -242,6 +242,14 @@ void main() {
     expect(c.selectedColor, paletteShades[Shade.base]![4]);
   });
 
+  test('팔레트 범위 밖 자리는 무시한다', () {
+    c.pickColorIndex(3);
+    c.pickColorIndex(99);
+    expect(c.colorIndex, 3, reason: '범위 밖이면 그대로 둔다');
+    c.pickColorIndex(-1);
+    expect(c.colorIndex, 3);
+  });
+
   test('명도를 누르면 고른 자리는 그대로고 색만 바뀐다', () {
     c.pickColorIndex(4);
     c.cycleShade();
