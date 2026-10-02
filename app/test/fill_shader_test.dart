@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkumul/coloring/brush_state.dart';
 import 'package:kkumul/coloring/coloring_painter.dart';
 import 'package:kkumul/coloring/fill_state.dart';
 
@@ -94,5 +95,39 @@ void main() {
       expect(d.getUint8(x * 4 + 3), 255);
       expect(d.getUint8(x * 4), 255, reason: '$x 번 픽셀이 흰색이어야 한다');
     }
+  });
+
+  test('긋는 중인 획이 있으면 다시 그린다', () async {
+    // 라이브 스트로크는 revision 을 올리지 않는다. 옛 비교 로직은 이것을
+    // "안 바뀌었다"로 읽어 손가락을 뗄 때까지 화면이 멈춰 있었다.
+    const ids = [2, 2, 2, 2];
+    final regions = await _regionStrip(ids);
+    final lineart = await _transparent(ids.length, 1);
+    final palette = await FillState().paletteImage();
+    final program = await ui.FragmentProgram.fromAsset('shaders/fill.frag');
+
+    ColoringPainter make(BrushState brush) => ColoringPainter(
+          shader: program.fragmentShader(),
+          regions: regions,
+          palette: palette,
+          lineart: lineart,
+          canvasSize: ids.length,
+          brush: brush,
+          brushRevision: brush.revision,
+        );
+
+    final brush = BrushState();
+    final before = make(brush);
+
+    brush.live = const Stroke(
+      kind: BrushKind.crayon,
+      color: Color(0xFFEF7586),
+      width: 24,
+      points: [Offset(0, 0), Offset(3, 0)],
+    );
+    final after = make(brush);
+
+    expect(after.shouldRepaint(before), isTrue,
+        reason: '긋는 중에도 다시 그려야 아이 손가락을 따라온다');
   });
 }

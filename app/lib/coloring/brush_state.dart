@@ -123,6 +123,8 @@ class BrushState {
   void clear() {
     strokes.clear();
     live = null;
+    // 네이티브 메모리다. null 로만 두면 1024² 한 장(약 4MiB)이 샌다.
+    base?.dispose();
     base = null;
     _revision++;
   }

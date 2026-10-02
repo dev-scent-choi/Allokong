@@ -98,14 +98,16 @@ class ColoringPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(ColoringPainter old) =>
-      old.palette != palette ||
-      old.regions != regions ||
-      old.lineart != lineart ||
-      old.canvasSize != canvasSize ||
-      old.brush != brush ||
-      old.brushRevision != brushRevision ||
-      old.paintableMask != paintableMask ||
-      old.stickers.length != stickers.length ||
-      old.stickerImages.length != stickerImages.length;
+  bool shouldRepaint(ColoringPainter old) {
+    // 항상 다시 그린다.
+    //
+    // 이 페인터는 컨트롤러가 "뭔가 바뀌었다"고 알렸을 때만 새로 만들어진다.
+    // 즉 "새로 만들어졌다"가 곧 "다시 그려야 한다"이다.
+    //
+    // 세밀하게 비교하려다 두 가지를 놓쳤었다 — 긋는 중인 획은 `BrushState.live`
+    // 에 있어서 `revision` 을 올리지 않고, 스티커 드래그는 `replaceAt` 이라
+    // 목록 길이가 그대로다. 둘 다 "안 바뀌었다"로 읽혀서, 아이가 손가락을 끄는
+    // 동안 화면에 아무것도 나타나지 않고 손을 뗄 때 획이 통째로 튀어나왔다.
+    return true;
+  }
 }

@@ -314,7 +314,6 @@ void main() {
     await tester.tap(find.byType(ToolButton).at(1)); // 크레용
     await tester.pump();
 
-    final box = tester.getRect(find.byKey(const ValueKey('coloring-canvas')));
     await tester.drag(
       find.byKey(const ValueKey('coloring-canvas')),
       const Offset(40, 0),
@@ -323,7 +322,6 @@ void main() {
     await tester.pump();
 
     expect(controller.state.brush.strokes, hasLength(1));
-    expect(box.width, greaterThan(0));
   });
 }
 

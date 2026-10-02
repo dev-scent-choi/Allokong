@@ -439,6 +439,8 @@ class ColoringController extends ChangeNotifier {
   void dispose() {
     _mask?.dispose();
     _mask = null;
+    _state.brush.base?.dispose();
+    _state.brush.base = null;
     // dispose 는 동기라 flush 를 기다릴 수 없다. 그렇다고 autosave 를 그냥
     // 버리면 예약돼 있던 마지막 탭이 조용히 사라진다 — 아이가 칠하자마자
     // 화면을 닫는 것이 정확히 그 상황이다. 쓰기를 먼저 걸어 두고, 그것이 끝난
