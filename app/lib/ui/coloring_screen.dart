@@ -4,13 +4,18 @@ import 'dart:ui' as ui;
 
 import 'package:dohan_core/dohan_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 
 import '../coloring/canvas_transform.dart';
 import '../coloring/coloring_controller.dart';
 import '../coloring/coloring_painter.dart';
+import '../coloring/sticker_state.dart';
+import '../settings/settings.dart';
 import 'palette_bar.dart';
-import 'palette_shades.dart';
+import 'shade_button.dart';
+import 'sticker_drawer.dart';
+import 'tool_bar.dart';
 
 /// 도안 하나를 칠하는 화면.
 class ColoringScreen extends StatefulWidget {
@@ -28,7 +33,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   ui.Image? _regionsImage;
   ui.Image? _lineartImage;
   ui.Image? _paletteImage;
-  int _paletteIndex = 0;
+  final Map<String, ui.Image> _stickerImages = {};
 
   @override
   void initState() {
@@ -48,6 +53,10 @@ class _ColoringScreenState extends State<ColoringScreen>
     _regionsImage?.dispose();
     _lineartImage?.dispose();
     _paletteImage?.dispose();
+    for (final img in _stickerImages.values) {
+      img.dispose();
+    }
+    _stickerImages.clear();
     super.dispose();
   }
 
@@ -82,12 +91,21 @@ class _ColoringScreenState extends State<ColoringScreen>
     final lineart = await _lineartToImage(dohan.lineart);
     final palette = await widget.controller.fills.paletteImage();
 
+    final loadedStickers = <String, ui.Image>{};
+    for (final id in kStickerIds) {
+      final data = await rootBundle.load('assets/stickers/$id.png');
+      loadedStickers[id] = await _decodeBytes(Uint8List.sublistView(data));
+    }
+
     if (!mounted) return;
     setState(() {
       _shader = program.fragmentShader();
       _regionsImage = regions;
       _lineartImage = lineart;
       _paletteImage = palette;
+      _stickerImages
+        ..clear()
+        ..addAll(loadedStickers);
     });
   }
 
@@ -113,6 +131,8 @@ class _ColoringScreenState extends State<ColoringScreen>
         toolbarHeight: 64,
         title: Text(c.dohan?.meta.title ?? '색칠하기'),
         actions: [
+          if (c.ageMode == AgeMode.child)
+            ShadeButton(shade: c.shade, onCycle: c.cycleShade),
           IconButton(
             key: const ValueKey('undo-button'),
             icon: const Icon(Icons.undo),
@@ -146,21 +166,32 @@ class _ColoringScreenState extends State<ColoringScreen>
                   ? const Center(child: CircularProgressIndicator())
                   : _buildCanvas(c),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: PaletteBar(
-                shade: Shade.base,
-                selectedIndex: _paletteIndex,
-                onPickIndex: (i) {
-                  setState(() => _paletteIndex = i);
-                  c.pickColorIndex(i);
-                },
-              ),
-            ),
+            if (c.ageMode == AgeMode.child)
+              ToolBar(selected: c.tool, onSelect: c.selectTool),
+            // 상황별 영역의 높이는 고정이다. 도구를 바꿀 때 높이가 변하면
+            // 캔버스가 늘었다 줄었다 하면서 아이가 그리던 그림이 화면에서 튄다.
+            SizedBox(height: 128, child: Center(child: _buildContext(c))),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildContext(ColoringController c) {
+    switch (c.tool) {
+      case ToolKind.sticker:
+        return StickerDrawer(onPick: c.addSticker);
+      case ToolKind.eraser:
+        return const SizedBox.shrink();
+      case ToolKind.bucket:
+      case ToolKind.crayon:
+      case ToolKind.brush:
+        return PaletteBar(
+          shade: c.shade,
+          selectedIndex: c.colorIndex,
+          onPickIndex: c.pickColorIndex,
+        );
+    }
   }
 
   Widget _buildCanvas(ColoringController c) {
@@ -181,6 +212,29 @@ class _ColoringScreenState extends State<ColoringScreen>
           key: const ValueKey('coloring-canvas'),
           behavior: HitTestBehavior.opaque,
           onTapDown: (d) => c.tapAt(transform.toCanvas(d.localPosition)),
+          onPanStart: (d) {
+            final p = transform.toCanvas(d.localPosition);
+            if (c.tool == ToolKind.sticker) {
+              c.beginStickerDrag(p);
+            } else {
+              c.beginStroke(p);
+            }
+          },
+          onPanUpdate: (d) {
+            final p = transform.toCanvas(d.localPosition);
+            if (c.tool == ToolKind.sticker) {
+              c.updateStickerDrag(x: p.dx, y: p.dy);
+            } else {
+              c.extendStroke(p);
+            }
+          },
+          onPanEnd: (_) {
+            if (c.tool == ToolKind.sticker) {
+              c.endStickerDrag();
+            } else {
+              c.endStroke();
+            }
+          },
           child: CustomPaint(
             size: Size(constraints.maxWidth, constraints.maxHeight),
             painter: painted
@@ -192,6 +246,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                       palette: _paletteImage!,
                       lineart: _lineartImage!,
                       canvasSize: canvasSize,
+                      brush: c.state.brush,
+                      brushRevision: c.state.brush.revision,
+                      paintableMask: c.paintableMask,
+                      stickers: c.state.stickers.stickers,
+                      stickerImages: _stickerImages,
                     ),
                   )
                 : null,
@@ -247,6 +306,13 @@ Future<ui.Image> _lineartToImage(img.Image lineart) {
     completer.complete,
   );
   return completer.future;
+}
+
+/// PNG 바이트를 디코딩한다. 스티커 에셋을 읽는 데 쓴다.
+Future<ui.Image> _decodeBytes(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  return frame.image;
 }
 
 /// 영역 맵을 셰이더가 읽을 RGBA 텍스처로 바꾼다.

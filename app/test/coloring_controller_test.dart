@@ -501,6 +501,43 @@ void main() {
     expect(c.state.stickers.stickers.first.x, 2, reason: '움직이지 않았다');
   });
 
+  test('스티커와 브러시가 다시 열 때 되살아난다', () async {
+    c.selectTool(ToolKind.crayon);
+    c.beginStroke(const Offset(0.5, 0.5));
+    c.endStroke();
+    c.addSticker('star-01');
+    await c.close();
+
+    final repo = ArtworkRepository(root);
+    final saved = await repo.load('w1');
+    final savedStickers = await repo.loadStickers('w1');
+    final savedBrush = await repo.loadBrushPng('w1');
+
+    expect(savedStickers, hasLength(1), reason: '붙인 스티커가 저장돼야 한다');
+    expect(savedBrush, isNotNull, reason: '그린 획이 저장돼야 한다');
+
+    // 앱을 껐다 켠 것처럼 새 컨트롤러로 연다.
+    final reopened = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: repo),
+      ageMode: AgeMode.child,
+    );
+    addTearDown(reopened.dispose);
+
+    await reopened.open(
+      dohanId: 'fake',
+      artworkId: 'w1',
+      existing: saved,
+      stickers: savedStickers,
+      brushPng: savedBrush,
+    );
+
+    expect(reopened.state.stickers.stickers, hasLength(1),
+        reason: '스티커가 돌아와야 한다');
+    expect(reopened.state.brush.base, isNotNull,
+        reason: '구운 브러시가 바탕으로 돌아와야 한다');
+  });
+
   test('스티커를 지우개로 떼면 되돌리기로 제자리에 돌아온다', () {
     c.addSticker('star-01');
     c.addSticker('heart-01');

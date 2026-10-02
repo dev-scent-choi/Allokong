@@ -11,9 +11,13 @@ import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
 import 'package:kkumul/gallery/autosave.dart';
+import 'package:kkumul/settings/settings.dart';
 import 'package:kkumul/ui/coloring_screen.dart';
 import 'package:kkumul/ui/palette_bar.dart';
 import 'package:kkumul/ui/palette_shades.dart';
+import 'package:kkumul/ui/shade_button.dart';
+import 'package:kkumul/ui/sticker_drawer.dart';
+import 'package:kkumul/ui/tool_bar.dart';
 
 class FakeDohanSource implements DohanSource {
   @override
@@ -197,6 +201,129 @@ void main() {
 
     expect(autosave.flushCount, greaterThan(before),
         reason: '아이가 앱을 떠나면 기다리지 말고 바로 써야 한다');
+  });
+
+  testWidgets('아동 모드는 도구 다섯 개와 명도 버튼을 보여준다', (tester) async {
+    controller.ageMode = AgeMode.child;
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ToolButton), findsNWidgets(5));
+    expect(find.byType(ShadeButton), findsOneWidget);
+  });
+
+  testWidgets('유아 모드는 도구 줄과 명도 버튼을 숨긴다', (tester) async {
+    controller.ageMode = AgeMode.toddler;
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ToolButton), findsNothing,
+        reason: '유아는 양동이 하나뿐이다 — 상위 스펙 9장');
+    expect(find.byType(ShadeButton), findsNothing);
+  });
+
+  testWidgets('명도 버튼을 누르면 팔레트 색이 바뀐다', (tester) async {
+    controller.ageMode = AgeMode.child;
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    final before = controller.selectedColor;
+    await tester.tap(find.byType(ShadeButton));
+    await tester.pump();
+
+    expect(controller.selectedColor, isNot(before));
+    expect(controller.colorIndex, 0, reason: '고른 자리는 그대로다');
+  });
+
+  testWidgets('스티커 도구를 고르면 서랍이 나온다', (tester) async {
+    controller.ageMode = AgeMode.child;
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(StickerButton), findsNothing);
+
+    await tester.tap(find.byType(ToolButton).at(4));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(StickerButton), findsWidgets);
+    expect(find.byType(ColorSwatchButton), findsNothing,
+        reason: '스티커를 고를 때는 팔레트가 필요 없다');
+  });
+
+  testWidgets('도구를 바꿔도 캔버스 크기가 변하지 않는다', (tester) async {
+    // 높이가 변하면 아이가 그리던 그림이 화면에서 튄다.
+    controller.ageMode = AgeMode.child;
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(320, 640);
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    final before = tester.getSize(find.byKey(const ValueKey('coloring-canvas')));
+
+    await tester.tap(find.byType(ToolButton).at(4)); // 스티커
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(const ValueKey('coloring-canvas'))), before);
+
+    await tester.tap(find.byType(ToolButton).at(3)); // 지우개
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(const ValueKey('coloring-canvas'))), before);
+  });
+
+  testWidgets('좁은 화면에서 도구 줄도 64dp 를 지키고 화면 안에 있다',
+      (tester) async {
+    controller.ageMode = AgeMode.child;
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.padding = const FakeViewPadding(bottom: 34);
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    for (final e in find.byType(ToolButton).evaluate()) {
+      final r = tester.getRect(find.byWidget(e.widget));
+      expect(r.width, greaterThanOrEqualTo(64));
+      expect(r.height, greaterThanOrEqualTo(64));
+      expect(r.right, lessThanOrEqualTo(320));
+      expect(r.bottom, lessThanOrEqualTo(640 - 34),
+          reason: '제스처 영역에 걸치면 도구 대신 홈 제스처가 먹는다');
+    }
+  });
+
+  testWidgets('크레용으로 끌면 획이 생긴다', (tester) async {
+    controller.ageMode = AgeMode.child;
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(ToolButton).at(1)); // 크레용
+    await tester.pump();
+
+    final box = tester.getRect(find.byKey(const ValueKey('coloring-canvas')));
+    await tester.drag(
+      find.byKey(const ValueKey('coloring-canvas')),
+      const Offset(40, 0),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+
+    expect(controller.state.brush.strokes, hasLength(1));
+    expect(box.width, greaterThan(0));
   });
 }
 

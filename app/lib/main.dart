@@ -5,6 +5,7 @@ import 'coloring/coloring_controller.dart';
 import 'gallery/artwork_repository.dart';
 import 'gallery/autosave.dart';
 import 'library/bundled_dohan_source.dart';
+import 'settings/settings.dart';
 import 'ui/coloring_screen.dart';
 
 Future<void> main() async {
@@ -12,9 +13,21 @@ Future<void> main() async {
 
   final docs = await getApplicationDocumentsDirectory();
   final repository = ArtworkRepository(docs);
+
+  // SettingsStore.load() 도 ArtworkRepository.load() 와 같은 원칙으로 읽기
+  // 자체가 실패하면(권한·잠김·디스크) 던진다. 따로 감싸서, 설정 파일 하나를
+  // 못 읽는다고 앱이 영영 안 뜨는 일이 없게 한다 — 그때는 기본값으로 시작한다.
+  var ageMode = AgeMode.toddler;
+  try {
+    ageMode = (await SettingsStore(docs).load()).ageMode;
+  } on Object catch (error) {
+    debugPrint('설정을 읽지 못했습니다 — 기본값으로 시작합니다: $error');
+  }
+
   final controller = ColoringController(
     source: BundledDohanSource(),
     autosave: Autosave(repository: repository),
+    ageMode: ageMode,
   );
 
   const dohanId = 'flower-01';
@@ -25,6 +38,8 @@ Future<void> main() async {
       dohanId: dohanId,
       artworkId: artworkId,
       existing: await repository.load(artworkId),
+      stickers: await repository.loadStickers(artworkId),
+      brushPng: await repository.loadBrushPng(artworkId),
     );
   } on Object catch (error) {
     // 읽기 자체가 실패했든(권한·잠김·디스크) 내용이 규칙을 어겼든, 앱이 아예

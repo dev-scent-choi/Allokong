@@ -90,6 +90,8 @@ class ColoringController extends ChangeNotifier {
     required String dohanId,
     required String artworkId,
     Artwork? existing,
+    List<Sticker> stickers = const [],
+    Uint8List? brushPng,
   }) async {
     final generation = ++_openGeneration;
 
@@ -111,6 +113,24 @@ class ColoringController extends ChangeNotifier {
     _undo.clear();
     _state.clear();
     if (existing != null) _state.fills.loadJson(existing.fills);
+
+    for (final s in stickers) {
+      _state.stickers.insertAt(_state.stickers.stickers.length, s);
+    }
+
+    if (brushPng != null) {
+      final restored = await _decodePng(brushPng);
+      // 두 번째 await 다. 그 사이에 또 열렸으면 이 결과는 버린다 — 위의
+      // 세대 가드와 같은 이유이고, 버리기 전에 해제해야 이미지가 샌다.
+      if (generation != _openGeneration) {
+        restored.dispose();
+        return;
+      }
+      _state.brush.base = restored;
+    }
+
+    // 복원한 상태가 이미 디스크에 있는 것이므로, 손대지 않은 작품이 첫 저장에서
+    // 헛되이 굽지 않도록 여기서 기준선을 잡는다. 반드시 복원 **뒤**다.
     autosave.markBrushWritten(_state.brush.revision);
     notifyListeners();
   }
@@ -426,4 +446,10 @@ class ColoringController extends ChangeNotifier {
     unawaited(autosave.flush().then((_) => autosave.dispose()));
     super.dispose();
   }
+}
+
+Future<ui.Image> _decodePng(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  return frame.image;
 }
