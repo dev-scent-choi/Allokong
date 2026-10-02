@@ -323,6 +323,24 @@ void main() {
 
     expect(controller.state.brush.strokes, hasLength(1));
   });
+
+  testWidgets('크레용으로 톡 찍으면 점 하나짜리 획이 생긴다', (tester) async {
+    controller.ageMode = AgeMode.child;
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(ToolButton).at(1)); // 크레용
+    await tester.pump();
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const ValueKey('coloring-canvas'))),
+    );
+    await tester.pump();
+
+    expect(controller.state.brush.strokes, hasLength(1));
+  });
 }
 
 /// 위젯 테스트는 저장 경로를 건드리지 않는다.

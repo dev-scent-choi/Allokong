@@ -492,6 +492,21 @@ void main() {
     expect(c.state.stickers.stickers, isEmpty);
   });
 
+  test('캔버스 밖으로 끌어도 중심은 캔버스 안에 머문다', () {
+    c.addSticker('star-01');
+    final start = c.state.stickers.stickers.first;
+
+    c.beginStickerDrag(Offset(start.x, start.y));
+    // 가짜 도안은 4 폭이다 — 한참 밖으로 끈다.
+    c.updateStickerDrag(x: -500, y: 999);
+
+    final dragged = c.state.stickers.stickers.first;
+    expect(dragged.x, inInclusiveRange(0.0, 4.0), reason: '왼쪽 밖으로 못 나간다');
+    expect(dragged.y, inInclusiveRange(0.0, 4.0), reason: '아래쪽 밖으로 못 나간다');
+
+    c.endStickerDrag();
+  });
+
   test('빈 곳을 끌면 아무 일도 없다', () {
     c.addSticker('star-01');
     c.beginStickerDrag(const Offset(999, 999));
@@ -536,6 +551,38 @@ void main() {
         reason: '스티커가 돌아와야 한다');
     expect(reopened.state.brush.base, isNotNull,
         reason: '구운 브러시가 바탕으로 돌아와야 한다');
+  });
+
+  test('브러시가 깨져도 채움과 스티커는 살아난다', () async {
+    c.pickColorIndex(0);
+    c.tapAt(const Offset(0.5, 0.5));
+    c.addSticker('star-01');
+    await c.close();
+
+    final repo = ArtworkRepository(root);
+    final saved = await repo.load('w1');
+    final savedStickers = await repo.loadStickers('w1');
+
+    final reopened = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: repo),
+      ageMode: AgeMode.child,
+    );
+    addTearDown(reopened.dispose);
+
+    // PNG 가 아닌 쓰레기를 brush.png 자리에 넣는다.
+    await reopened.open(
+      dohanId: 'fake',
+      artworkId: 'w1',
+      existing: saved,
+      stickers: savedStickers,
+      brushPng: Uint8List.fromList([1, 2, 3, 4]),
+    );
+
+    expect(reopened.fills.filledCount, 1, reason: '칠한 것은 살아남아야 한다');
+    expect(reopened.state.stickers.stickers, hasLength(1),
+        reason: '스티커도 살아남아야 한다');
+    expect(reopened.state.brush.base, isNull, reason: '브러시만 비어 있다');
   });
 
   test('스티커를 지우개로 떼면 되돌리기로 제자리에 돌아온다', () {

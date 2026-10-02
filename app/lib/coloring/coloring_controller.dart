@@ -119,14 +119,20 @@ class ColoringController extends ChangeNotifier {
     }
 
     if (brushPng != null) {
-      final restored = await _decodePng(brushPng);
-      // 두 번째 await 다. 그 사이에 또 열렸으면 이 결과는 버린다 — 위의
-      // 세대 가드와 같은 이유이고, 버리기 전에 해제해야 이미지가 샌다.
-      if (generation != _openGeneration) {
-        restored.dispose();
-        return;
+      try {
+        final restored = await _decodePng(brushPng);
+        // 두 번째 await 다. 그 사이에 또 열렸으면 이 결과는 버린다 — 위의
+        // 세대 가드와 같은 이유이고, 버리기 전에 해제해야 이미지가 샌다.
+        if (generation != _openGeneration) {
+          restored.dispose();
+          return;
+        }
+        _state.brush.base = restored;
+      } on Object catch (error) {
+        // 스펙 6.2: 세 파일은 독립이다. 브러시가 깨졌다고 아이가 칠한 것과
+        // 붙인 스티커까지 버리면 안 된다 — 브러시만 빈 채로 연다.
+        debugPrint('브러시 레이어를 읽지 못했습니다 — 빈 브러시로 엽니다: $error');
       }
-      _state.brush.base = restored;
     }
 
     // 복원한 상태가 이미 디스크에 있는 것이므로, 손대지 않은 작품이 첫 저장에서
@@ -401,12 +407,22 @@ class ColoringController extends ChangeNotifier {
     double? scale,
   }) {
     final before = _dragBefore;
-    if (before == null) return;
+    final dohan = _dohan;
+    if (before == null || dohan == null) return;
     final index = _state.stickers.indexOf(before.instanceId);
     if (index < 0) return;
 
-    _state.stickers
-        .replaceAt(index, before.copyWith(x: x, y: y, scale: scale));
+    // 캔버스 밖으로 끌고 나가면 스티커가 사라진다. 중심을 캔버스 안에 가둔다 —
+    // 가장자리에 반쯤 걸치는 것은 괜찮지만 완전히 나가면 아이가 되찾을 수 없다.
+    final size = dohan.regions.width.toDouble();
+    _state.stickers.replaceAt(
+      index,
+      before.copyWith(
+        x: x.clamp(0.0, size),
+        y: y.clamp(0.0, size),
+        scale: scale,
+      ),
+    );
     notifyListeners();
   }
 

@@ -20,6 +20,12 @@ class FillState {
   /// 팔레트 텍스처의 원본 바이트. 테스트와 디버깅용이다.
   Uint8List get lutBytes => _lut;
 
+  /// 채움이 바뀔 때마다 올라간다. 팔레트 텍스처는 이 값에만 의존하므로,
+  /// 다시 구울지 말지를 이 값의 변화로만 판단할 수 있다 — 획을 긋는 동안은
+  /// 채움이 전혀 바뀌지 않으므로 매 점마다 다시 구울 필요가 없다.
+  int _revision = 0;
+  int get revision => _revision;
+
   int get filledCount => _fills.length;
 
   Color? fillOf(int regionId) => _fills[regionId];
@@ -41,6 +47,7 @@ class FillState {
       _lut[o + 1] = 0;
       _lut[o + 2] = 0;
       _lut[o + 3] = 0;
+      _revision++;
       return;
     }
 
@@ -49,11 +56,13 @@ class FillState {
     _lut[o + 1] = (color.g * 255).round();
     _lut[o + 2] = (color.b * 255).round();
     _lut[o + 3] = (color.a * 255).round();
+    _revision++;
   }
 
   void clear() {
     _fills.clear();
     _lut.fillRange(0, _lut.length, 0);
+    _revision++;
   }
 
   /// 영역 ID → ARGB 정수. 작품 파일에 그대로 넣는다.

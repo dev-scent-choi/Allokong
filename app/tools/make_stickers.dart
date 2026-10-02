@@ -17,6 +17,35 @@ typedef Shape = bool Function(double x, double y);
 double _r(double x, double y) => math.sqrt(x * x + y * y);
 double _theta(double x, double y) => math.atan2(y, x);
 
+/// 각도별 반지름을 삼각파로 보간하면(이전 시도) 극좌표의 선형 보간이
+/// 직교좌표에서는 곡선이 되어 뾰족한 꼭짓점 대신 둥근 꽃잎이 된다. 진짜
+/// 별 모양은 바깥 꼭짓점과 안쪽 골을 **직선**으로 잇는다 — 그 직선을
+/// 극좌표 방정식 r(θ) = C / (A cosθ + B sinθ) 로 직접 계산한다
+/// (두 점을 지나는 직선의 일반형 Ax+By=C 를 극좌표로 바꾼 것).
+double _starRadius(
+  double theta, {
+  required int points,
+  required double outerR,
+  required double innerR,
+}) {
+  final step = math.pi / points; // 바깥·안쪽 꼭짓점이 번갈아 나오는 간격
+  const twoPi = 2 * math.pi;
+  final t = theta - twoPi * (theta / twoPi).floorToDouble();
+  final segment = (t / step).floor();
+  final a0 = segment * step;
+  final a1 = a0 + step;
+  final r0 = segment.isEven ? outerR : innerR;
+  final r1 = segment.isEven ? innerR : outerR;
+  final x0 = r0 * math.cos(a0), y0 = r0 * math.sin(a0);
+  final x1 = r1 * math.cos(a1), y1 = r1 * math.sin(a1);
+  final a = y0 - y1;
+  final b = x1 - x0;
+  final c = x1 * y0 - y1 * x0;
+  final denom = a * math.cos(t) + b * math.sin(t);
+  if (denom == 0) return outerR;
+  return c / denom;
+}
+
 class _Sticker {
   final Shape shape;
   final int fill;
@@ -25,10 +54,9 @@ class _Sticker {
 
 final Map<String, _Sticker> _stickers = {
   'star-01': _Sticker((x, y) {
-    final t = _theta(x, y) + math.pi / 2;
-    final k = 5 * t / (2 * math.pi);
-    final f = (k - k.floorToDouble()) * 2 - 1;
-    return _r(x, y) <= 0.42 + 0.46 * (1 - f.abs());
+    final theta = _theta(x, y) + math.pi / 2; // 꼭짓점 하나가 위를 보게
+    final edge = _starRadius(theta, points: 5, outerR: 0.95, innerR: 0.40);
+    return _r(x, y) <= edge;
   }, 0xF1BD45),
   'heart-01': _Sticker((x, y) {
     final px = x * 1.35;
@@ -36,6 +64,10 @@ final Map<String, _Sticker> _stickers = {
     final a = px * px + py * py - 1;
     return a * a * a - px * px * py * py * py <= 0;
   }, 0xEF7586),
+  // cos(6θ) 의 "6" 을 보고 꽃잎 여섯 장을 떠올리기 쉽지만, 밖에 .abs() 를
+  // 씌워 극좌표 장미 곡선의 음의 로브를 양의 로브로 접으면 로브 수가 두
+  // 배가 된다 — 실제로는 **12 장**이다. star-01 과 두 칸 떨어져 나란히
+  // 있어서, 둘이 비슷해 보이면 글을 못 읽는 아이에게는 같은 신호가 된다.
   'flower-01': _Sticker(
     (x, y) => _r(x, y) <= 0.5 + 0.38 * math.cos(6 * _theta(x, y)).abs(),
     0x9E82CF,

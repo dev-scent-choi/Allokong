@@ -52,6 +52,17 @@ void main() {
       );
     }
     expect(stack.length, 3);
+
+    // 어느 쪽을 버렸는지까지 봐야 한다. 개수만 보면 가장 최근 것을 버리는
+    // 구현도 통과한다 — 아이가 방금 한 일을 되돌릴 수 없게 되는데도.
+    expect(stack.undo(state), isTrue);
+    expect(state.fills.fillOf(6), isNull, reason: '가장 최근 것부터 되돌아간다');
+    expect(stack.undo(state), isTrue);
+    expect(state.fills.fillOf(5), isNull);
+    expect(stack.undo(state), isTrue);
+    expect(state.fills.fillOf(4), isNull);
+    expect(stack.undo(state), isFalse, reason: '2·3 번은 이미 버려졌다');
+    expect(state.fills.fillOf(2), _pink, reason: '버려진 것은 되돌아오지 않는다');
   });
 
   test('되돌릴 것이 없으면 false 다', () {

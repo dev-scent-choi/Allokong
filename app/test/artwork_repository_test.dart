@@ -157,7 +157,7 @@ void main() {
     expect(await repo.loadBrushPng('a1'), isNull);
   });
 
-  test('브러시가 깨져도 채움과 스티커는 살아난다', () async {
+  test('스티커가 깨져도 채움과 브러시는 살아난다', () async {
     await repo.save(
       sample(),
       stickers: [Sticker(instanceId: 'a', stickerId: 'star-01', x: 1, y: 2)],

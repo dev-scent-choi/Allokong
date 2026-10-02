@@ -72,6 +72,10 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// 팔레트 갱신이 겹쳤을 때 늦게 시작한 것이 이기도록 세대 번호를 둔다.
   int _paletteGeneration = 0;
 
+  /// 마지막으로 팔레트를 구운 시점의 채움 개정 번호. 획을 긋는 동안은 이
+  /// 값이 바뀌지 않으므로 다시 구울 필요가 없다는 것을 알 수 있다.
+  int _paletteFillRevision = -1;
+
   void _onChanged() {
     if (!mounted) return;
     // 동기적으로 한 번 다시 그린다. 되돌리기 버튼의 활성 여부는 canUndo 에
@@ -79,7 +83,13 @@ class _ColoringScreenState extends State<ColoringScreen>
     // 맡기면 버튼이 한 박자 늦는다 — 위젯 테스트의 pump() 한 번으로는
     // 잡히지 않고, 실제 기기에서도 아이가 칠한 직후 버튼이 잠깐 죽어 있다.
     setState(() {});
-    unawaited(_refreshPalette());
+    // 팔레트 텍스처는 채움에만 의존한다. 획을 긋는 동안 매 점마다 다시 구우면
+    // 초당 쉰 장 넘게 버려진다 — 채움이 실제로 바뀌었을 때만 만든다.
+    final revision = widget.controller.fills.revision;
+    if (revision != _paletteFillRevision) {
+      _paletteFillRevision = revision;
+      unawaited(_refreshPalette());
+    }
   }
 
   Future<void> _prepare() async {
@@ -98,6 +108,10 @@ class _ColoringScreenState extends State<ColoringScreen>
     }
 
     if (!mounted) return;
+    // 여기서 구운 팔레트가 이미 반영하는 개정 번호를 기록해 둔다. 그렇지
+    // 않으면 로드 뒤 첫 획이 "개정 번호가 바뀌었다"고 오판해 똑같은 팔레트를
+    // 한 번 더 굽는다.
+    _paletteFillRevision = widget.controller.fills.revision;
     setState(() {
       _shader = program.fragmentShader();
       _regionsImage = regions;
@@ -212,6 +226,17 @@ class _ColoringScreenState extends State<ColoringScreen>
           key: const ValueKey('coloring-canvas'),
           behavior: HitTestBehavior.opaque,
           onTapDown: (d) => c.tapAt(transform.toCanvas(d.localPosition)),
+          onTapUp: (d) {
+            final c2 = c;
+            if (c2.tool == ToolKind.bucket || c2.tool == ToolKind.sticker) {
+              return;
+            }
+            // 아이는 끌기만 하지 않는다 — 톡 찍기도 한다. onTapUp 이라야
+            // 끌기로 번진 경우에는 불리지 않는다(그때는 onPanStart 가 맡는다).
+            final p = transform.toCanvas(d.localPosition);
+            c2.beginStroke(p);
+            c2.endStroke();
+          },
           onPanStart: (d) {
             final p = transform.toCanvas(d.localPosition);
             if (c.tool == ToolKind.sticker) {
