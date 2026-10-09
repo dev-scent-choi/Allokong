@@ -124,11 +124,20 @@ class _ColoringSessionState extends State<ColoringSession> {
     if (mounted) setState(() => _opened = true);
   }
 
+  bool _finishing = false;
+
   /// 나가는 길. `완성` 버튼과 기기 뒤로가기가 함께 쓴다.
   ///
   /// `close()` 를 **먼저 기다린다.** 그냥 pop 하면 화면이 먼저 사라져서
   /// 썸네일을 구울 텍스처가 이미 해제된 뒤가 된다.
+  ///
+  /// 아이는 버튼을 두 번 누른다. 지금은 Navigator 가 중복 pop 을 흡수해
+  /// 주지만(위젯 테스트로 확인), 그것은 내부 구현이다. 나가는 길이 한 번만
+  /// 도는 것을 여기서 보장한다.
   Future<void> _finish() async {
+    if (_finishing) return;
+    _finishing = true;
+
     await _controller.close();
     if (mounted) Navigator.of(context).pop();
   }

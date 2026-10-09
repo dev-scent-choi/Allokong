@@ -76,6 +76,17 @@ final _canvas = find.byKey(const ValueKey('coloring-canvas'));
 /// 색칠에서 셸로 돌아오기를 기다린다.
 Future<void> _back(WidgetTester tester) => _settle(tester, find.text('열기'));
 
+/// pop 이 몇 번 일어났는지 센다.
+class _PopCounter extends NavigatorObserver {
+  int pops = 0;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    pops++;
+    super.didPop(route, previousRoute);
+  }
+}
+
 void main() {
   late Directory root;
   late ArtworkRepository repository;
@@ -90,8 +101,10 @@ void main() {
   Widget host({
     required String artworkId,
     AgeMode ageMode = AgeMode.toddler,
+    NavigatorObserver? observer,
   }) {
     return MaterialApp(
+      navigatorObservers: [if (observer != null) observer],
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -241,6 +254,25 @@ void main() {
     expect(ids.where((id) => id.startsWith('w1-복구-')), hasLength(1));
     expect(Directory('${root.path}/artworks/w1/artwork.json').existsSync(),
         isTrue, reason: '원본은 손대지 않는다');
+  });
+
+  testWidgets('완성을 두 번 눌러도 pop 은 한 번이다', (tester) async {
+    // 아이는 버튼을 두 번 누른다. 첫 pop 뒤에도 나가는 전환 동안 위젯이
+    // 살아 있어 mounted 가 참이라, 막지 않으면 두 번째 pop 이 그 아래의
+    // 셸까지 닫는다.
+    final pops = _PopCounter();
+    await tester.pumpWidget(host(artworkId: 'w1', observer: pops));
+    await tester.tap(find.text('열기'));
+    await _settle(tester, _canvas);
+
+    final finish = find.text('완성');
+    await tester.tap(finish, warnIfMissed: false);
+    if (finish.evaluate().isNotEmpty) {
+      await tester.tap(finish, warnIfMissed: false);
+    }
+    await _back(tester);
+
+    expect(pops.pops, 1, reason: '색칠 화면 하나만 닫혀야 한다');
   });
 
   test('작품 id 는 빠르게 두 번 만들어도 겹치지 않는다', () {
