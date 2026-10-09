@@ -11,7 +11,7 @@ class DohanMeta {
   final String id;
   final String title;
 
-  /// `animal` · `car` · `dinosaur` · `character` 중 하나.
+  /// `animal` · `car` · `dinosaur` · `shape` 중 하나.
   final String category;
 
   /// `bundled`(앱 내장) 또는 `user`(사용자가 사진에서 변환).

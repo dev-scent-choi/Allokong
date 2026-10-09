@@ -323,4 +323,22 @@ void main() {
         greaterThanOrEqualTo(kRegionFirstFillable),
         reason: '가운데 도형 내부는 칠할 수 있어야 한다');
   });
+
+  test('buildDohan 은 shape 카테고리를 받는다', () async {
+    final input = File('${tmp.path}/in.png')
+      ..writeAsBytesSync(img.encodePng(_fourBoxesImage()));
+    final outDir = Directory('${tmp.path}/out');
+
+    final report = await cli.buildDohan(
+      input: input,
+      outDir: outDir,
+      id: 'shape-x',
+      title: '모양',
+      category: 'shape',
+    );
+
+    expect(report.passed, isTrue, reason: report.koreanSummary());
+    final pkg = await readDohanPackage(outDir);
+    expect(pkg.meta.category, 'shape');
+  });
 }

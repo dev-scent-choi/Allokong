@@ -126,7 +126,7 @@ class _BuildCommand extends Command<int> {
       ..addOption('id', help: '도안 ID. 생략하면 파일 이름을 씁니다.')
       ..addOption('title', help: '도안 제목. 생략하면 ID를 씁니다.')
       ..addOption('category',
-          allowed: ['animal', 'car', 'dinosaur', 'character'],
+          allowed: ['animal', 'car', 'dinosaur', 'shape'],
           defaultsTo: 'animal',
           help: '도안 카테고리.')
       ..addOption('difficulty', defaultsTo: '1', help: '난이도 1~3.')
