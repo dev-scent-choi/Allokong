@@ -136,4 +136,23 @@ void main() {
     expect(find.byType(ArtTile), findsOneWidget,
         reason: '색칠에서 돌아왔는데 새 작품이 안 보이면 안 된다');
   });
+
+  testWidgets('썸네일 하나를 못 읽어도 나머지가 보인다', (tester) async {
+    // 썸네일 한 장 때문에 아이가 자기 그림을 전부 못 보게 되면 안 된다.
+    await tester.runAsync(() async {
+      await addArtwork('good', at: DateTime.utc(2026, 10, 5));
+      await addArtwork('broken', at: DateTime.utc(2026, 10, 1));
+      // thumb.png 자리에 디렉터리를 두면 readAsBytes 가 던진다.
+      Directory('${root.path}/artworks/broken/thumb.png')
+          .createSync(recursive: true);
+    });
+
+    await tester.pumpWidget(host());
+    await settle(tester, until: find.byType(ArtTile));
+
+    expect(find.byType(ArtTile), findsNWidgets(2),
+        reason: '못 읽은 한 장 때문에 전체가 멈추면 안 된다');
+    expect(find.byKey(const ValueKey('lineart-broken')), findsOneWidget,
+        reason: '못 읽은 썸네일은 없는 것으로 치고 선화로 대체한다');
+  });
 }

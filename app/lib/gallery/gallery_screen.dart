@@ -53,12 +53,30 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Future<void> _load() async {
-    final list = await widget.repository.listAll();
+    final List<Artwork> list;
+    try {
+      list = await widget.repository.listAll();
+    } on Object catch (error) {
+      // 목록을 못 읽으면 보여 줄 것이 없다. 그래도 스피너를 영영 돌리는
+      // 것보다 빈 상태를 보여주는 편이 낫다 — 아이는 놀기에서 새로
+      // 시작할 수 있다.
+      debugPrint('작품 목록을 읽지 못했습니다: $error');
+      if (mounted) setState(() => _artworks = const []);
+      return;
+    }
+
     final thumbs = <String, Uint8List>{};
     for (final a in list) {
-      final png = await widget.repository.loadThumbnail(a.id);
-      if (png != null) thumbs[a.id] = png;
+      try {
+        final png = await widget.repository.loadThumbnail(a.id);
+        if (png != null) thumbs[a.id] = png;
+      } on Object catch (error) {
+        // 썸네일 하나를 못 읽는다고 모아보기 전체가 멈추면 안 된다.
+        // 없는 것으로 치면 그 도안의 선화로 대체된다.
+        debugPrint('썸네일을 읽지 못했습니다(${a.id}): $error');
+      }
     }
+
     if (!mounted) return;
     setState(() {
       _artworks = list;
