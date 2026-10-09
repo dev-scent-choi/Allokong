@@ -3763,7 +3763,7 @@ void main() {
         ).position.pixels;
 
     await tester.drag(find.text('오늘의 그림'), const Offset(0, -200));
-    await tester.pumpAndSettle();
+    await settle(tester);
     final scrolled = playOffset();
     expect(scrolled, greaterThan(0));
 
@@ -3811,7 +3811,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('nav-me')));
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('clear-data')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('clear-confirm')));
     await settle(tester);
 
