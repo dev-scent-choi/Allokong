@@ -1342,7 +1342,10 @@ Future<void> _settle(WidgetTester tester, [Finder? until]) async {
     if (until != null && until.evaluate().isNotEmpty) return;
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 25)));
-    await tester.pump();
+    // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지 않아
+    // 라우트 전환 애니메이션이 영영 안 끝나고, 들어오는 화면의 버튼이
+    // 화면 밖에 머문 채로 남는다 — 태스크 5 에서 실제로 그랬다.
+    await tester.pump(const Duration(milliseconds: 25));
     if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
   }
   // 조건이 안 섰으면 호출부의 expect 가 무엇이 없는지 말해 준다.
@@ -1402,9 +1405,11 @@ void main() {
   testWidgets('여는 동안 로딩을 보여주고 열리면 캔버스가 뜬다', (tester) async {
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
-    await tester.pump(); // 라우트가 밀려 올라간다. open() 은 아직 안 끝났다
+    await tester.pump(); // 라우트가 쌓인다
+    await tester.pump(const Duration(milliseconds: 16)); // 첫 프레임이 그려진다
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget,
+        reason: 'open() 이 끝나기 전에는 로딩을 보여준다');
 
     await _settle(tester, _canvas);
 
@@ -1488,12 +1493,18 @@ void main() {
         reason: '새 세션은 새 컨트롤러라 현재 설정을 읽는다');
   });
 
-  testWidgets('저장 파일이 깨졌으면 복구 id 로 연다', (tester) async {
+  testWidgets('저장 파일을 읽지 못하면 복구 id 로 연다', (tester) async {
     // main() 에 있던 복구 경로다. 같은 id 로 새로 시작하면 자동 저장이
     // 잠깐 못 읽었을 뿐일지 모르는 멀쩡한 파일을 덮어쓴다.
-    Directory('${root.path}/artworks/w1').createSync(recursive: true);
-    File('${root.path}/artworks/w1/artwork.json')
-        .writeAsStringSync('{"id":"w1"'); // 닫히지 않은 JSON
+    //
+    // **내용이 깨진 JSON 으로는 이 경로를 못 건드린다** — `load()` 가
+    // FormatException 을 잡아 null 을 주므로 복구가 아예 안 돈다(실측).
+    // 던지는 것은 읽기 자체의 실패뿐이다. artwork.json 자리에 디렉터리를
+    // 두면 readAsString 이 FileSystemException(PathNotFoundException 이
+    // 아니다)을 내고 `load()` 가 그대로 올려 보낸다 — 권한·잠김·디스크
+    // 오류가 실제로 그렇게 온다.
+    Directory('${root.path}/artworks/w1/artwork.json')
+        .createSync(recursive: true);
 
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
@@ -1504,8 +1515,8 @@ void main() {
 
     final ids = (await repository.listAll()).map((a) => a.id).toList();
     expect(ids.where((id) => id.startsWith('w1-복구-')), hasLength(1));
-    expect(File('${root.path}/artworks/w1/artwork.json').readAsStringSync(),
-        '{"id":"w1"', reason: '원본은 손대지 않는다');
+    expect(Directory('${root.path}/artworks/w1/artwork.json').existsSync(),
+        isTrue, reason: '원본은 손대지 않는다');
   });
 
   test('작품 id 는 빠르게 두 번 만들어도 겹치지 않는다', () {
@@ -2073,7 +2084,9 @@ void main() {
       if (until != null && until.evaluate().isNotEmpty) return;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
-      await tester.pump();
+      // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지
+      // 않아 라우트 전환이 영영 안 끝난다 — 태스크 5 에서 실제로 그랬다.
+      await tester.pump(const Duration(milliseconds: 25));
       if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
     }
   }
@@ -2528,7 +2541,9 @@ void main() {
       if (until != null && until.evaluate().isNotEmpty) return;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
-      await tester.pump();
+      // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지
+      // 않아 라우트 전환이 영영 안 끝난다 — 태스크 5 에서 실제로 그랬다.
+      await tester.pump(const Duration(milliseconds: 25));
       if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
     }
   }
@@ -3643,7 +3658,9 @@ void main() {
       if (until != null && until.evaluate().isNotEmpty) return;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
-      await tester.pump();
+      // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지
+      // 않아 라우트 전환이 영영 안 끝난다 — 태스크 5 에서 실제로 그랬다.
+      await tester.pump(const Duration(milliseconds: 25));
       if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
     }
   }
