@@ -1,0 +1,36 @@
+{
+  "id": "animal-fish-01",
+  "title": "물고기",
+  "category": "animal",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 4,
+  "difficulty": 1,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      773,
+      403
+    ],
+    "3": [
+      407,
+      611
+    ],
+    "4": [
+      585,
+      443
+    ],
+    "5": [
+      300,
+      505
+    ]
+  },
+  "createdAt": "2026-10-09T02:12:53.797932Z"
+}

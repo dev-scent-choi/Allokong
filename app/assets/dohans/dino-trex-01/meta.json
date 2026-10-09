@@ -1,0 +1,40 @@
+{
+  "id": "dino-trex-01",
+  "title": "티라노사우루스",
+  "category": "dinosaur",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 5,
+  "difficulty": 3,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      712,
+      382
+    ],
+    "3": [
+      572,
+      394
+    ],
+    "4": [
+      820,
+      310
+    ],
+    "5": [
+      204,
+      541
+    ],
+    "6": [
+      430,
+      579
+    ]
+  },
+  "createdAt": "2026-10-09T02:13:43.452730Z"
+}

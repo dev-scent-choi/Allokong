@@ -1,0 +1,44 @@
+{
+  "id": "car-truck-01",
+  "title": "트럭",
+  "category": "car",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 6,
+  "difficulty": 2,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      210,
+      530
+    ],
+    "3": [
+      545,
+      605
+    ],
+    "4": [
+      295,
+      690
+    ],
+    "5": [
+      695,
+      690
+    ],
+    "6": [
+      293,
+      789
+    ],
+    "7": [
+      693,
+      789
+    ]
+  },
+  "createdAt": "2026-10-09T02:13:18.334793Z"
+}

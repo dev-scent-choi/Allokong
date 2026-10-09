@@ -1,0 +1,36 @@
+{
+  "id": "dino-stego-01",
+  "title": "스테고사우루스",
+  "category": "dinosaur",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 4,
+  "difficulty": 2,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      642,
+      476
+    ],
+    "3": [
+      216,
+      479
+    ],
+    "4": [
+      822,
+      518
+    ],
+    "5": [
+      480,
+      620
+    ]
+  },
+  "createdAt": "2026-10-09T02:13:35.062957Z"
+}

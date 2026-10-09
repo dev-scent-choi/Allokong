@@ -1,0 +1,36 @@
+{
+  "id": "dino-bronto-01",
+  "title": "브라키오사우루스",
+  "category": "dinosaur",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 4,
+  "difficulty": 2,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      680,
+      299
+    ],
+    "3": [
+      699,
+      442
+    ],
+    "4": [
+      634,
+      655
+    ],
+    "5": [
+      400,
+      690
+    ]
+  },
+  "createdAt": "2026-10-09T02:13:51.935363Z"
+}

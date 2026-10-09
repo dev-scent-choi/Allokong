@@ -1,0 +1,36 @@
+{
+  "id": "animal-cat-01",
+  "title": "고양이",
+  "category": "animal",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 4,
+  "difficulty": 1,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      358,
+      631
+    ],
+    "3": [
+      400,
+      478
+    ],
+    "4": [
+      624,
+      478
+    ],
+    "5": [
+      512,
+      658
+    ]
+  },
+  "createdAt": "2026-10-09T02:12:45.681132Z"
+}

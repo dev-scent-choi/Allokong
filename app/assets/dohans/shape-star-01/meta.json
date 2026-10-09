@@ -1,0 +1,44 @@
+{
+  "id": "shape-star-01",
+  "title": "별",
+  "category": "shape",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 6,
+  "difficulty": 1,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      463,
+      351
+    ],
+    "3": [
+      561,
+      351
+    ],
+    "4": [
+      357,
+      521
+    ],
+    "5": [
+      667,
+      521
+    ],
+    "6": [
+      512,
+      512
+    ],
+    "7": [
+      476,
+      667
+    ]
+  },
+  "createdAt": "2026-10-09T02:14:09.161358Z"
+}

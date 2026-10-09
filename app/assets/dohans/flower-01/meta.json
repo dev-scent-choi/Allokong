@@ -1,7 +1,7 @@
 {
   "id": "flower-01",
   "title": "동그라미 꽃",
-  "category": "animal",
+  "category": "shape",
   "source": "bundled",
   "canvasSize": [
     1024,
@@ -32,5 +32,5 @@
       512
     ]
   },
-  "createdAt": "2026-09-25T02:40:55.211945Z"
+  "createdAt": "2026-10-09T02:14:00.437195Z"
 }

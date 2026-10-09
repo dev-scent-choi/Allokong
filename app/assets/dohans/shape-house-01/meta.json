@@ -1,0 +1,36 @@
+{
+  "id": "shape-house-01",
+  "title": "집",
+  "category": "shape",
+  "source": "bundled",
+  "canvasSize": [
+    1024,
+    1024
+  ],
+  "regionCount": 4,
+  "difficulty": 1,
+  "suggestedPalette": [
+    "#ef7586",
+    "#f1bd45",
+    "#6caee0"
+  ],
+  "regionAnchors": {
+    "2": [
+      512,
+      370
+    ],
+    "3": [
+      540,
+      550
+    ],
+    "4": [
+      385,
+      665
+    ],
+    "5": [
+      670,
+      700
+    ]
+  },
+  "createdAt": "2026-10-09T02:14:17.679097Z"
+}

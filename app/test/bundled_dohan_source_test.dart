@@ -64,4 +64,37 @@ void main() {
     expect(pkg.regions.width, 1024);
     expect(pkg.regions.fillableRegionCount, greaterThanOrEqualTo(4));
   });
+
+  test('내장 도안이 12장이고 네 카테고리에 셋씩이다', () async {
+    final source = BundledDohanSource();
+    final ids = await source.listIds();
+
+    expect(ids, hasLength(12));
+    expect(ids.toSet(), hasLength(12), reason: 'id 가 겹치면 안 된다');
+
+    final byCategory = <String, List<String>>{};
+    for (final id in ids) {
+      final pkg = await source.load(id);
+      byCategory.putIfAbsent(pkg.meta.category, () => []).add(id);
+      expect(pkg.meta.id, id, reason: 'meta.id 와 폴더 이름이 어긋났다');
+      expect(pkg.regions.width, 1024);
+      expect(pkg.meta.title, isNotEmpty);
+    }
+
+    expect(byCategory.keys.toSet(), {'animal', 'car', 'dinosaur', 'shape'});
+    for (final entry in byCategory.entries) {
+      expect(entry.value, hasLength(3), reason: '${entry.key} 가 3장이 아니다');
+    }
+  });
+
+  test('도안마다 칠할 수 있는 영역이 넷 이상이다', () async {
+    final source = BundledDohanSource();
+    for (final id in await source.listIds()) {
+      final pkg = await source.load(id);
+      expect(pkg.regions.fillableRegionCount, greaterThanOrEqualTo(4),
+          reason: '$id 는 칠할 곳이 넷도 안 된다');
+      expect(pkg.regions.fillableRegionCount, lessThanOrEqualTo(120),
+          reason: '$id 는 영역이 너무 많다');
+    }
+  });
 }

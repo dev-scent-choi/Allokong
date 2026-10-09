@@ -11,7 +11,22 @@ import '../core/dohan_source.dart';
 /// `DohanPackage.fromBytes` 로 조립한다.
 class BundledDohanSource implements DohanSource {
   /// 번들에 실린 도안 ID. pubspec 의 `assets` 목록과 짝이 맞아야 한다.
-  static const defaultIds = ['flower-01'];
+  ///
+  /// 순서가 `놀기` 의 카테고리별 격자 순서가 된다.
+  static const defaultIds = [
+    'animal-cat-01',
+    'animal-fish-01',
+    'animal-bird-01',
+    'car-sedan-01',
+    'car-truck-01',
+    'car-bus-01',
+    'dino-stego-01',
+    'dino-trex-01',
+    'dino-bronto-01',
+    'flower-01',
+    'shape-star-01',
+    'shape-house-01',
+  ];
 
   final AssetBundle _bundle;
   final List<String> _ids;

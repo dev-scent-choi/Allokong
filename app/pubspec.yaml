@@ -45,7 +45,18 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/dohans/animal-cat-01/
+    - assets/dohans/animal-fish-01/
+    - assets/dohans/animal-bird-01/
+    - assets/dohans/car-sedan-01/
+    - assets/dohans/car-truck-01/
+    - assets/dohans/car-bus-01/
+    - assets/dohans/dino-stego-01/
+    - assets/dohans/dino-trex-01/
+    - assets/dohans/dino-bronto-01/
     - assets/dohans/flower-01/
+    - assets/dohans/shape-star-01/
+    - assets/dohans/shape-house-01/
     - assets/stickers/
 
   shaders:
