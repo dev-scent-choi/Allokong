@@ -3811,12 +3811,13 @@ void main() {
   });
 
   testWidgets('데이터를 초기화하면 모아보기가 비워진다', (tester) async {
-    await repository.save(Artwork(
-      id: 'w1',
-      dohanId: 'animal-a',
-      fills: const {},
-      updatedAt: DateTime.utc(2026, 10, 5),
-    ));
+    // 진짜 파일 쓰기는 FakeAsync 아래에서 끝나지 않는다. 실제 존에서 쓴다.
+    await tester.runAsync(() => repository.save(Artwork(
+          id: 'w1',
+          dohanId: 'animal-a',
+          fills: const {},
+          updatedAt: DateTime.utc(2026, 10, 5),
+        )));
 
     await tester.pumpWidget(host());
     await settle(tester);
