@@ -82,10 +82,11 @@ class _PlayScreenState extends State<PlayScreen> {
 
   /// 오늘의 도안. 날짜를 씨앗으로 고르므로 하루 종일 같고 내일 바뀐다.
   ///
-  /// 난수 상태를 저장할 필요가 없다는 것이 이 방식의 전부다.
+  /// 지역 달력 날짜로 센다. `toUtc()` 를 먼저 걸면 한국(UTC+9)에서는
+  /// 자정이 아니라 오전 9시에 날이 넘어간다.
   DohanMeta _todayDohan(List<DohanMeta> metas) {
-    final now = (widget.today ?? DateTime.now()).toUtc();
-    final days = DateTime.utc(now.year, now.month, now.day)
+    final local = widget.today ?? DateTime.now();
+    final days = DateTime.utc(local.year, local.month, local.day)
         .difference(DateTime.utc(1970))
         .inDays;
     return metas[days % metas.length];
@@ -103,32 +104,44 @@ class _PlayScreenState extends State<PlayScreen> {
     }
 
     final recent = _recent;
+    final today = _todayDohan(metas);
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        if (recent != null) ...[
-          const _Heading('이어 그리기'),
-          ArtTile(
-            key: const ValueKey('continue-tile'),
-            label: '이어 그리기 ${recent.id}',
-            onTap: () => widget.onOpen(
-              dohanId: recent.dohanId,
-              artworkId: recent.id,
+        const _Heading('바로 시작'),
+        // 두 칸을 한 줄에 둔다. 각각 전폭 정사각형으로 두면 320x640 에서
+        // 카테고리가 전부 2.5쪽 아래로 밀려 아이가 도안을 못 찾는다(실측).
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (recent != null) ...[
+              Expanded(
+                child: ArtTile(
+                  key: const ValueKey('continue-tile'),
+                  label: '이어 그리기',
+                  onTap: () => widget.onOpen(
+                    dohanId: recent.dohanId,
+                    artworkId: recent.id,
+                  ),
+                  child: _lineart(recent.dohanId),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: ArtTile(
+                key: const ValueKey('today-tile'),
+                label: '오늘의 그림 ${today.title}',
+                onTap: () => _openNew(today),
+                child: _lineart(today.id),
+              ),
             ),
-            child: _lineart(recent.dohanId),
-          ),
-          const SizedBox(height: 16),
-        ],
-        const _Heading('오늘의 그림'),
-        Builder(builder: (_) {
-          final today = _todayDohan(metas);
-          return ArtTile(
-            key: const ValueKey('today-tile'),
-            label: today.title,
-            onTap: () => _openNew(today),
-            child: _lineart(today.id),
-          );
-        }),
+            if (recent == null) ...[
+              const SizedBox(width: 8),
+              const Expanded(child: SizedBox.shrink()),
+            ],
+          ],
+        ),
         for (final (code, name) in _categories) ...[
           const SizedBox(height: 16),
           _Heading(name),

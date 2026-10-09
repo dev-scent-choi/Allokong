@@ -109,6 +109,7 @@ void main() {
       expect(find.text(name), findsOneWidget, reason: '$name 제목이 없다');
     }
 
+    expect(find.byType(Scrollable), findsWidgets);
     // 가로로 밀리는 줄이 하나도 없어야 한다. 글을 못 읽는 아이에게
     // 가로 스크롤은 "없는 것"이다.
     for (final e in find.byType(Scrollable).evaluate()) {
@@ -119,29 +120,54 @@ void main() {
   });
 
   testWidgets('오늘의 도안은 하루 동안 같고 날이 바뀌면 바뀐다', (tester) async {
-    await tester.pumpWidget(host(today: DateTime.utc(2026, 10, 6)));
-    await settle(tester);
-    final first =
-        tester.widget<ArtTile>(find.byKey(const ValueKey('today-tile'))).label;
+    final todayTile = find.byKey(const ValueKey('today-tile'));
+    String label() => tester.widget<ArtTile>(todayTile).label;
 
-    await tester.pumpWidget(host(today: DateTime.utc(2026, 10, 6, 23, 59)));
-    await settle(tester);
-    expect(
-      tester.widget<ArtTile>(find.byKey(const ValueKey('today-tile'))).label,
-      first,
-      reason: '같은 날에는 같은 도안이어야 한다',
-    );
+    // 지역 새벽 2시는 UTC 로는 전날이다. 지역 날짜로 세야 같은 날이다.
+    await tester.pumpWidget(host(today: DateTime(2026, 10, 6, 2)));
+    await settle(tester, todayTile);
+    final first = label();
 
-    // 열두 장이므로 열사흘 안에 반드시 다른 것이 나온다.
-    final later = <String>{};
-    for (var d = 1; d <= 13; d++) {
-      await tester.pumpWidget(host(today: DateTime.utc(2026, 10, 6 + d)));
-      await settle(tester);
-      later.add(tester
-          .widget<ArtTile>(find.byKey(const ValueKey('today-tile')))
-          .label);
+    await tester.pumpWidget(host(today: DateTime(2026, 10, 6, 23)));
+    await tester.pump();
+    expect(label(), first, reason: '같은 날에는 같은 도안이어야 한다');
+
+    await tester.pumpWidget(host(today: DateTime(2026, 10, 7, 2)));
+    await tester.pump();
+    expect(label(), isNot(first), reason: '내일은 달라야 한다');
+  });
+
+  testWidgets('320x640 에서도 넘치지 않고 카테고리에 닿을 수 있다', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    // 이어 그리기까지 있는 가장 긴 경우로 잰다.
+    await tester.runAsync(() => repository.save(Artwork(
+          id: 'w1',
+          dohanId: 'animal-a',
+          fills: const {},
+          updatedAt: DateTime.utc(2026, 10, 5),
+        )));
+    await tester.pumpWidget(host());
+    await settle(tester, find.byKey(const ValueKey('continue-tile')));
+    expect(tester.takeException(), isNull);
+
+    // 첫 화면에 동물 카테고리가 들어와야 한다.
+    expect(find.text('동물'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('동물')).dy, lessThan(640),
+        reason: '동물 제목이 첫 화면 밖에 있다');
+
+    for (final e in find.byType(ArtTile).evaluate()) {
+      final size = e.size!;
+      expect(size.width, greaterThanOrEqualTo(64));
+      expect(size.height, greaterThanOrEqualTo(64));
     }
-    expect(later.any((l) => l != first), isTrue, reason: '내일은 달라야 한다');
+
+    await tester.scrollUntilVisible(find.text('모양'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('모양'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('도안을 누르면 새 작품으로 연다', (tester) async {
@@ -169,7 +195,6 @@ void main() {
     await settle(tester);
 
     expect(find.byKey(const ValueKey('continue-tile')), findsNothing);
-    expect(find.text('이어 그리기'), findsNothing);
   });
 
   testWidgets('이어 그리기는 가장 최근 작품을 그대로 연다', (tester) async {
@@ -194,7 +219,7 @@ void main() {
     ));
     await settle(tester);
 
-    expect(find.text('이어 그리기'), findsOneWidget);
+    expect(find.byKey(const ValueKey('continue-tile')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('continue-tile')));
     await settle(tester);
 
@@ -204,7 +229,7 @@ void main() {
   testWidgets('refreshToken 이 바뀌면 이어 그리기를 다시 읽는다', (tester) async {
     await tester.pumpWidget(host());
     await settle(tester);
-    expect(find.text('이어 그리기'), findsNothing);
+    expect(find.byKey(const ValueKey('continue-tile')), findsNothing);
 
     await tester.runAsync(() => repository.save(Artwork(
       id: 'w1',
@@ -215,6 +240,6 @@ void main() {
     await tester.pumpWidget(host(refreshToken: 1));
     await settle(tester);
 
-    expect(find.text('이어 그리기'), findsOneWidget);
+    expect(find.byKey(const ValueKey('continue-tile')), findsOneWidget);
   });
 }
