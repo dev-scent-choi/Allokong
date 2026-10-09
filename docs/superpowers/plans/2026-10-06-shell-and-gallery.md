@@ -1330,18 +1330,32 @@ class FakeDohanSource implements DohanSource {
 
 /// 엔진 콜백(ui.decodeImageFromPixels)은 testWidgets 본문의 FakeAsync
 /// 아래에서 완료되지 않는다. 실제 존에서 한 박자 돌려 준 뒤 펌프한다.
-Future<void> _settle(WidgetTester tester, {Finder? until}) async {
-  // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 셰이더
-  // 컴파일과 텍스처 디코딩이 여러 번에 나눠 끝나므로, 조건이 설 때까지
-  // 실제 존에서 기다리며 펌프한다.
-  for (var i = 0; i < 100; i++) {
-    if (until != null && until.evaluate().isNotEmpty) break;
+Future<void> _settle(WidgetTester tester, [Finder? until]) async {
+  // **`pumpAndSettle` 을 쓰지 않는다.** 여는 동안 도는
+  // `CircularProgressIndicator` 가 프레임을 끝없이 예약해서 영영 멎지 않고,
+  // 기본 타임아웃 10분까지 교착한다 — 태스크 5 에서 실제로 그랬다.
+  //
+  // 엔진 콜백(셰이더 컴파일·텍스처 디코딩)은 FakeAsync 아래에서 완료되지
+  // 않으므로 실제 존에서 기다리며 펌프한다. 한 번으로는 모자라다 —
+  // 여러 번에 나눠 끝난다(태스크 4 실측).
+  for (var i = 0; i < 200; i++) {
+    if (until != null && until.evaluate().isNotEmpty) return;
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 25)));
     await tester.pump();
-    if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+    if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
   }
-  await tester.pumpAndSettle();
+  // 조건이 안 섰으면 호출부의 expect 가 무엇이 없는지 말해 준다.
+}
+
+final _canvas = find.byKey(const ValueKey('coloring-canvas'));
+
+/// 색칠에서 셸로 돌아오기를 기다린다. 되돌아오는 전환까지 밀어 준다.
+Future<void> _back(WidgetTester tester) async {
+  await _settle(tester, find.text('열기'));
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
 }
 
 void main() {
@@ -1380,7 +1394,7 @@ void main() {
 
   /// 캔버스 왼쪽(영역 2)을 칠한다.
   Future<void> paintLeft(WidgetTester tester) async {
-    final box = tester.getRect(find.byKey(const ValueKey('coloring-canvas')));
+    final box = tester.getRect(_canvas);
     await tester.tapAt(Offset(box.left + box.width * 0.3, box.center.dy));
     await tester.pump();
   }
@@ -1392,19 +1406,19 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    await _settle(tester);
+    await _settle(tester, _canvas);
 
-    expect(find.byKey(const ValueKey('coloring-canvas')), findsOneWidget);
+    expect(_canvas, findsOneWidget);
   });
 
   testWidgets('완성을 누르면 셸로 돌아가고 칠한 것이 저장된다', (tester) async {
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
 
     await paintLeft(tester);
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
 
     expect(find.text('열기'), findsOneWidget, reason: '셸로 돌아와야 한다');
     final saved = await repository.load('w1');
@@ -1417,13 +1431,13 @@ void main() {
     // 잃는 것이 없어야 확인 대화상자를 뺄 수 있다.
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
     await paintLeft(tester);
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
 
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
 
     // 왼쪽 절반(영역 2)이 이미 칠해져 있으므로 다시 칠해도 늘지 않는다.
     final saved = await repository.load('w1');
@@ -1431,7 +1445,7 @@ void main() {
         reason: '다시 열었을 때 칠한 것이 돌아와야 한다');
 
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
     expect((await repository.load('w1'))!.fills.keys, contains(2));
   });
 
@@ -1441,17 +1455,17 @@ void main() {
     // 않는다. 오류도 안 뜨고 그림만 사라진다.
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
     await paintLeft(tester);
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
 
     await tester.pumpWidget(host(artworkId: 'w2'));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
     await paintLeft(tester);
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
 
     expect((await repository.load('w1'))?.fills, isNotEmpty);
     expect((await repository.load('w2'))?.fills, isNotEmpty,
@@ -1461,14 +1475,14 @@ void main() {
   testWidgets('연령대를 바꿔 열면 그 설정이 적용된다', (tester) async {
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
     expect(find.byType(ToolButton), findsNothing, reason: '유아는 도구 줄이 없다');
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
 
     await tester.pumpWidget(host(artworkId: 'w2', ageMode: AgeMode.child));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
 
     expect(find.byType(ToolButton), findsNWidgets(5),
         reason: '새 세션은 새 컨트롤러라 현재 설정을 읽는다');
@@ -1483,10 +1497,10 @@ void main() {
 
     await tester.pumpWidget(host(artworkId: 'w1'));
     await tester.tap(find.text('열기'));
-    await _settle(tester);
+    await _settle(tester, _canvas);
     await paintLeft(tester);
     await tester.tap(find.text('완성'));
-    await _settle(tester);
+    await _back(tester);
 
     final ids = (await repository.listAll()).map((a) => a.id).toList();
     expect(ids.where((id) => id.startsWith('w1-복구-')), hasLength(1));
@@ -2048,17 +2062,20 @@ void main() {
       );
 
   /// 썸네일 PNG 디코딩은 엔진 콜백이다. 실제 존에서 한 박자 돌린다.
-  Future<void> settle(WidgetTester tester, {Finder? until}) async {
-    // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 조건이
-    // 설 때까지 실제 존에서 기다리며 펌프한다.
-    for (var i = 0; i < 100; i++) {
-      if (until != null && until.evaluate().isNotEmpty) break;
+  Future<void> settle(WidgetTester tester, [Finder? until]) async {
+    // **`pumpAndSettle` 을 쓰지 않는다.** 읽는 동안 도는
+    // `CircularProgressIndicator` 가 프레임을 끝없이 예약해서 영영 멎지
+    // 않고, 기본 타임아웃 10분까지 교착한다 — 태스크 5 에서 실제로 그랬다.
+    //
+    // 엔진 콜백은 FakeAsync 아래에서 완료되지 않으므로 실제 존에서
+    // 기다리며 펌프한다. 기다릴 조건이 있으면 주는 편이 빠르고 정확하다.
+    for (var i = 0; i < 200; i++) {
+      if (until != null && until.evaluate().isNotEmpty) return;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
       await tester.pump();
-      if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+      if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
     }
-    await tester.pumpAndSettle();
   }
 
   testWidgets('작품이 없으면 빈 상태 안내를 보여준다', (tester) async {
@@ -2500,17 +2517,20 @@ void main() {
         ),
       );
 
-  Future<void> settle(WidgetTester tester, {Finder? until}) async {
-    // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 조건이
-    // 설 때까지 실제 존에서 기다리며 펌프한다.
-    for (var i = 0; i < 100; i++) {
-      if (until != null && until.evaluate().isNotEmpty) break;
+  Future<void> settle(WidgetTester tester, [Finder? until]) async {
+    // **`pumpAndSettle` 을 쓰지 않는다.** 읽는 동안 도는
+    // `CircularProgressIndicator` 가 프레임을 끝없이 예약해서 영영 멎지
+    // 않고, 기본 타임아웃 10분까지 교착한다 — 태스크 5 에서 실제로 그랬다.
+    //
+    // 엔진 콜백은 FakeAsync 아래에서 완료되지 않으므로 실제 존에서
+    // 기다리며 펌프한다. 기다릴 조건이 있으면 주는 편이 빠르고 정확하다.
+    for (var i = 0; i < 200; i++) {
+      if (until != null && until.evaluate().isNotEmpty) return;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
       await tester.pump();
-      if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+      if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
     }
-    await tester.pumpAndSettle();
   }
 
   testWidgets('카테고리 넷을 제목과 함께 세로로 펼친다', (tester) async {
@@ -3612,17 +3632,20 @@ void main() {
         ),
       );
 
-  Future<void> settle(WidgetTester tester, {Finder? until}) async {
-    // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 조건이
-    // 설 때까지 실제 존에서 기다리며 펌프한다.
-    for (var i = 0; i < 100; i++) {
-      if (until != null && until.evaluate().isNotEmpty) break;
+  Future<void> settle(WidgetTester tester, [Finder? until]) async {
+    // **`pumpAndSettle` 을 쓰지 않는다.** 읽는 동안 도는
+    // `CircularProgressIndicator` 가 프레임을 끝없이 예약해서 영영 멎지
+    // 않고, 기본 타임아웃 10분까지 교착한다 — 태스크 5 에서 실제로 그랬다.
+    //
+    // 엔진 콜백은 FakeAsync 아래에서 완료되지 않으므로 실제 존에서
+    // 기다리며 펌프한다. 기다릴 조건이 있으면 주는 편이 빠르고 정확하다.
+    for (var i = 0; i < 200; i++) {
+      if (until != null && until.evaluate().isNotEmpty) return;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
       await tester.pump();
-      if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+      if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
     }
-    await tester.pumpAndSettle();
   }
 
   testWidgets('놀기로 시작하고 탭을 오갈 수 있다', (tester) async {
