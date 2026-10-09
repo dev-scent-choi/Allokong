@@ -3270,8 +3270,8 @@ void main() {
     await tester.pumpWidget(host(onSelect: picked.add));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('모아보기'));
-    await tester.tap(find.text('내 정보'));
+    await tester.tap(find.byKey(const ValueKey('nav-gallery')));
+    await tester.tap(find.byKey(const ValueKey('nav-me')));
     await tester.pump();
 
     expect(picked, [ShellTab.gallery, ShellTab.me]);
@@ -3354,6 +3354,9 @@ class BottomNav extends StatelessWidget {
               for (final (tab, icon, label) in _slots)
                 Expanded(
                   child: NavSlot(
+                    // 라벨로 찾으면 모호하다 — `내 정보` 는 설정 화면의
+                    // 제목이기도 해서, 그 탭에 있을 때 둘이 잡힌다.
+                    key: ValueKey('nav-${tab.name}'),
                     tab: tab,
                     icon: icon,
                     label: label,
@@ -3589,15 +3592,15 @@ void main() {
 
     expect(find.text('오늘의 그림'), findsOneWidget);
 
-    await tester.tap(find.text('모아보기'));
+    await tester.tap(find.byKey(const ValueKey('nav-gallery')));
     await settle(tester);
     expect(find.byKey(const ValueKey('gallery-empty')), findsOneWidget);
 
-    await tester.tap(find.text('내 정보'));
+    await tester.tap(find.byKey(const ValueKey('nav-me')));
     await settle(tester);
     expect(find.byKey(const ValueKey('age-child')), findsOneWidget);
 
-    await tester.tap(find.text('만들기'));
+    await tester.tap(find.byKey(const ValueKey('nav-create')));
     await settle(tester);
     expect(find.byType(PlaceholderScreen), findsOneWidget);
   });
@@ -3643,7 +3646,7 @@ void main() {
     await tester.tap(find.text('완성'));
     await settle(tester);
 
-    await tester.tap(find.text('모아보기'));
+    await tester.tap(find.byKey(const ValueKey('nav-gallery')));
     await settle(tester);
 
     expect(find.byType(ArtTile), findsOneWidget);
@@ -3664,9 +3667,9 @@ void main() {
     final scrolled = playOffset();
     expect(scrolled, greaterThan(0));
 
-    await tester.tap(find.text('모아보기'));
+    await tester.tap(find.byKey(const ValueKey('nav-gallery')));
     await settle(tester);
-    await tester.tap(find.text('놀기'));
+    await tester.tap(find.byKey(const ValueKey('nav-play')));
     await settle(tester);
 
     expect(playOffset(), scrolled, reason: '처음으로 튀면 안 된다');
@@ -3677,12 +3680,12 @@ void main() {
     await tester.pumpWidget(host());
     await settle(tester);
 
-    await tester.tap(find.text('내 정보'));
+    await tester.tap(find.byKey(const ValueKey('nav-me')));
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('age-child')));
     await settle(tester);
 
-    await tester.tap(find.text('놀기'));
+    await tester.tap(find.byKey(const ValueKey('nav-play')));
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('today-tile')));
     await settle(tester);
@@ -3701,18 +3704,18 @@ void main() {
 
     await tester.pumpWidget(host());
     await settle(tester);
-    await tester.tap(find.text('모아보기'));
+    await tester.tap(find.byKey(const ValueKey('nav-gallery')));
     await settle(tester);
     expect(find.byType(ArtTile), findsOneWidget);
 
-    await tester.tap(find.text('내 정보'));
+    await tester.tap(find.byKey(const ValueKey('nav-me')));
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('clear-data')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('clear-confirm')));
     await settle(tester);
 
-    await tester.tap(find.text('모아보기'));
+    await tester.tap(find.byKey(const ValueKey('nav-gallery')));
     await settle(tester);
 
     expect(find.byKey(const ValueKey('gallery-empty')), findsOneWidget);
