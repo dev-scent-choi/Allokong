@@ -1339,27 +1339,27 @@ Future<void> _settle(WidgetTester tester, [Finder? until]) async {
   // 않으므로 실제 존에서 기다리며 펌프한다. 한 번으로는 모자라다 —
   // 여러 번에 나눠 끝난다(태스크 4 실측).
   for (var i = 0; i < 200; i++) {
-    if (until != null && until.evaluate().isNotEmpty) return;
+    if (until != null && until.evaluate().isNotEmpty) break;
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 25)));
     // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지 않아
     // 라우트 전환 애니메이션이 영영 안 끝나고, 들어오는 화면의 버튼이
     // 화면 밖에 머문 채로 남는다 — 태스크 5 에서 실제로 그랬다.
     await tester.pump(const Duration(milliseconds: 25));
-    if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
+    if (until == null && i >= 59) break; // 조건이 없으면 1.5초로 끝낸다
   }
-  // 조건이 안 섰으면 호출부의 expect 가 무엇이 없는지 말해 준다.
-}
-
-final _canvas = find.byKey(const ValueKey('coloring-canvas'));
-
-/// 색칠에서 셸로 돌아오기를 기다린다. 되돌아오는 전환까지 밀어 준다.
-Future<void> _back(WidgetTester tester) async {
-  await _settle(tester, find.text('열기'));
+  // 조건이 섰어도 라우트 전환은 아직 날아가는 중일 수 있다. 끝까지 밀어야
+  // 버튼과 캔버스가 제자리에 온다 — 그 전에 getRect 로 좌표를 재면 화면
+  // 밖을 짚는다(태스크 5 에서 완성 버튼이 x=904, 폭 800 화면 밖이었다).
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
 }
+
+final _canvas = find.byKey(const ValueKey('coloring-canvas'));
+
+/// 색칠에서 셸로 돌아오기를 기다린다.
+Future<void> _back(WidgetTester tester) => _settle(tester, find.text('열기'));
 
 void main() {
   late Directory root;
@@ -1426,7 +1426,8 @@ void main() {
     await _back(tester);
 
     expect(find.text('열기'), findsOneWidget, reason: '셸로 돌아와야 한다');
-    final saved = await repository.load('w1');
+    // 진짜 파일 I/O 는 FakeAsync 아래에서 끝나지 않는다. 실제 존에서 읽는다.
+    final saved = await tester.runAsync(() => repository.load('w1'));
     expect(saved, isNotNull);
     expect(saved!.fills, isNotEmpty);
   });
@@ -1445,13 +1446,17 @@ void main() {
     await _settle(tester, _canvas);
 
     // 왼쪽 절반(영역 2)이 이미 칠해져 있으므로 다시 칠해도 늘지 않는다.
-    final saved = await repository.load('w1');
+    // 진짜 파일 I/O 는 FakeAsync 아래에서 끝나지 않는다. 실제 존에서 읽는다.
+    final saved = await tester.runAsync(() => repository.load('w1'));
     expect(saved!.fills.keys, contains(2),
         reason: '다시 열었을 때 칠한 것이 돌아와야 한다');
 
     await tester.tap(find.text('완성'));
     await _back(tester);
-    expect((await repository.load('w1'))!.fills.keys, contains(2));
+    expect(
+      (await tester.runAsync(() => repository.load('w1')))!.fills.keys,
+      contains(2),
+    );
   });
 
   testWidgets('두 번째 작품도 저장된다', (tester) async {
@@ -1472,8 +1477,10 @@ void main() {
     await tester.tap(find.text('완성'));
     await _back(tester);
 
-    expect((await repository.load('w1'))?.fills, isNotEmpty);
-    expect((await repository.load('w2'))?.fills, isNotEmpty,
+    expect((await tester.runAsync(() => repository.load('w1')))?.fills,
+        isNotEmpty);
+    expect((await tester.runAsync(() => repository.load('w2')))?.fills,
+        isNotEmpty,
         reason: '두 번째 세션의 Autosave 가 죽어 있으면 여기서 빈다');
   });
 
@@ -1513,7 +1520,9 @@ void main() {
     await tester.tap(find.text('완성'));
     await _back(tester);
 
-    final ids = (await repository.listAll()).map((a) => a.id).toList();
+    final ids = (await tester.runAsync(() => repository.listAll()))!
+        .map((a) => a.id)
+        .toList();
     expect(ids.where((id) => id.startsWith('w1-복구-')), hasLength(1));
     expect(Directory('${root.path}/artworks/w1/artwork.json').existsSync(),
         isTrue, reason: '원본은 손대지 않는다');
@@ -2081,13 +2090,17 @@ void main() {
     // 엔진 콜백은 FakeAsync 아래에서 완료되지 않으므로 실제 존에서
     // 기다리며 펌프한다. 기다릴 조건이 있으면 주는 편이 빠르고 정확하다.
     for (var i = 0; i < 200; i++) {
-      if (until != null && until.evaluate().isNotEmpty) return;
+      if (until != null && until.evaluate().isNotEmpty) break;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
       // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지
       // 않아 라우트 전환이 영영 안 끝난다 — 태스크 5 에서 실제로 그랬다.
       await tester.pump(const Duration(milliseconds: 25));
-      if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
+      if (until == null && i >= 59) break; // 조건이 없으면 1.5초로 끝낸다
+    }
+    // 조건이 섰어도 전환은 아직 날아가는 중일 수 있다. 끝까지 민다.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
     }
   }
 
@@ -2538,13 +2551,17 @@ void main() {
     // 엔진 콜백은 FakeAsync 아래에서 완료되지 않으므로 실제 존에서
     // 기다리며 펌프한다. 기다릴 조건이 있으면 주는 편이 빠르고 정확하다.
     for (var i = 0; i < 200; i++) {
-      if (until != null && until.evaluate().isNotEmpty) return;
+      if (until != null && until.evaluate().isNotEmpty) break;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
       // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지
       // 않아 라우트 전환이 영영 안 끝난다 — 태스크 5 에서 실제로 그랬다.
       await tester.pump(const Duration(milliseconds: 25));
-      if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
+      if (until == null && i >= 59) break; // 조건이 없으면 1.5초로 끝낸다
+    }
+    // 조건이 섰어도 전환은 아직 날아가는 중일 수 있다. 끝까지 민다.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
     }
   }
 
@@ -3655,13 +3672,17 @@ void main() {
     // 엔진 콜백은 FakeAsync 아래에서 완료되지 않으므로 실제 존에서
     // 기다리며 펌프한다. 기다릴 조건이 있으면 주는 편이 빠르고 정확하다.
     for (var i = 0; i < 200; i++) {
-      if (until != null && until.evaluate().isNotEmpty) return;
+      if (until != null && until.evaluate().isNotEmpty) break;
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)));
       // **시간을 주어 펌프한다.** 인자 없는 pump() 는 시계를 움직이지
       // 않아 라우트 전환이 영영 안 끝난다 — 태스크 5 에서 실제로 그랬다.
       await tester.pump(const Duration(milliseconds: 25));
-      if (until == null && i >= 59) return; // 조건이 없으면 1.5초로 끝낸다
+      if (until == null && i >= 59) break; // 조건이 없으면 1.5초로 끝낸다
+    }
+    // 조건이 섰어도 전환은 아직 날아가는 중일 수 있다. 끝까지 민다.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
     }
   }
 
