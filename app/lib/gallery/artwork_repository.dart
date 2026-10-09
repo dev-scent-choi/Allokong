@@ -26,6 +26,8 @@ class ArtworkRepository {
 
   File _brushFileFor(String id) => File('${_dirFor(id).path}/brush.png');
 
+  File _thumbFileFor(String id) => File('${_dirFor(id).path}/thumb.png');
+
   /// 작품을 쓴다. 임시 파일에 쓰고 rename 해서, 쓰는 도중 앱이 죽어도
   /// 반쯤 쓰인 파일이 남지 않게 한다.
   ///
@@ -126,6 +128,39 @@ class ArtworkRepository {
       return await _brushFileFor(id).readAsBytes();
     } on PathNotFoundException {
       return null;
+    }
+  }
+
+  /// 갤러리 썸네일을 쓴다.
+  ///
+  /// 자동 저장과 달리 색칠 화면을 **나갈 때 한 번만** 불린다. 굽는 데 드는
+  /// 비용(PNG 인코딩 실측 39ms)을 그리는 동안 0 으로 유지하기 위해서다.
+  Future<void> saveThumbnail(String id, Uint8List png) async {
+    final dir = _dirFor(id);
+    await dir.create(recursive: true);
+    final tmp = File('${dir.path}/thumb.png.tmp');
+    await tmp.writeAsBytes(png, flush: true);
+    await tmp.rename(_thumbFileFor(id).path);
+  }
+
+  /// 썸네일. 없으면 `null` — 부르는 쪽이 그 도안의 선화로 대체한다.
+  ///
+  /// 앱이 강제 종료되어 썸네일을 굽지 못한 경우가 정상 경로에 있다.
+  Future<Uint8List?> loadThumbnail(String id) async {
+    try {
+      return await _thumbFileFor(id).readAsBytes();
+    } on PathNotFoundException {
+      return null;
+    }
+  }
+
+  /// 작품을 **전부** 지운다. `내 정보` 의 데이터 초기화에서만 부른다.
+  ///
+  /// `artworks/` 폴더만 지우므로 `settings.json` 은 남는다 — 연령대는
+  /// 아이의 작품이 아니라 보호자의 설정이다.
+  Future<void> deleteAll() async {
+    if (_artworksDir.existsSync()) {
+      await _artworksDir.delete(recursive: true);
     }
   }
 

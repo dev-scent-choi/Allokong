@@ -170,4 +170,71 @@ void main() {
     expect(await repo.loadStickers('a1'), isEmpty, reason: '깨진 스티커는 버린다');
     expect(await repo.loadBrushPng('a1'), isNotNull);
   });
+
+  test('썸네일을 쓰고 다시 읽는다', () async {
+    final png = Uint8List.fromList([137, 80, 78, 71, 1, 2, 3]);
+
+    await repo.saveThumbnail('w1', png);
+
+    expect(await repo.loadThumbnail('w1'), png);
+  });
+
+  test('썸네일이 없으면 null 이다', () async {
+    expect(await ArtworkRepository(root).loadThumbnail('없는작품'), isNull);
+  });
+
+  test('썸네일을 써도 작품 파일은 그대로다', () async {
+    await repo.save(Artwork(
+      id: 'w1',
+      dohanId: 'flower-01',
+      fills: const {2: 0xFFFF0000},
+      updatedAt: DateTime.utc(2026, 10, 6),
+    ));
+
+    await repo.saveThumbnail('w1', Uint8List.fromList([1, 2, 3]));
+
+    final loaded = await repo.load('w1');
+    expect(loaded, isNotNull);
+    expect(loaded!.fills[2], 0xFFFF0000);
+  });
+
+  test('전체 삭제는 작품을 모두 지운다', () async {
+    for (final id in ['w1', 'w2', 'w3']) {
+      await repo.save(Artwork(
+        id: id,
+        dohanId: 'flower-01',
+        fills: const {},
+        updatedAt: DateTime.utc(2026, 10, 6),
+      ));
+    }
+    expect(await repo.listAll(), hasLength(3));
+
+    await repo.deleteAll();
+
+    expect(await repo.listAll(), isEmpty);
+    expect(await repo.load('w1'), isNull);
+  });
+
+  test('전체 삭제는 settings.json 을 건드리지 않는다', () async {
+    // 연령대는 아이의 작품이 아니라 보호자의 설정이다. 작품을 지웠다고
+    // 다시 고르게 할 이유가 없다.
+    final settings = File('${root.path}/settings.json')
+      ..writeAsStringSync('{"ageMode":"child"}');
+    await repo.save(Artwork(
+      id: 'w1',
+      dohanId: 'flower-01',
+      fills: const {},
+      updatedAt: DateTime.utc(2026, 10, 6),
+    ));
+
+    await repo.deleteAll();
+
+    expect(settings.existsSync(), isTrue);
+    expect(settings.readAsStringSync(), contains('child'));
+  });
+
+  test('작품이 하나도 없을 때 전체 삭제해도 터지지 않는다', () async {
+    await ArtworkRepository(root).deleteAll();
+    expect(await ArtworkRepository(root).listAll(), isEmpty);
+  });
 }
