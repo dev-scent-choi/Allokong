@@ -601,4 +601,88 @@ void main() {
         ['star-01', 'heart-01'],
         reason: 'z 순서까지 복원해야 한다');
   });
+
+  test('화면을 나가면 썸네일을 굽고 저장한다', () async {
+    final root = Directory.systemTemp.createTempSync('kkumul_thumb_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final repository = ArtworkRepository(root);
+    final controller = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: repository),
+    );
+    addTearDown(controller.dispose);
+    await controller.open(dohanId: 'fake', artworkId: 'w1');
+
+    controller.thumbnailBaker =
+        () async => Uint8List.fromList([137, 80, 78, 71, 9]);
+    await controller.close();
+
+    expect(await repository.loadThumbnail('w1'),
+        Uint8List.fromList([137, 80, 78, 71, 9]));
+  });
+
+  test('굽는 함수가 없으면 썸네일을 쓰지 않는다', () async {
+    final root = Directory.systemTemp.createTempSync('kkumul_thumb_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final repository = ArtworkRepository(root);
+    final controller = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: repository),
+    );
+    addTearDown(controller.dispose);
+    await controller.open(dohanId: 'fake', artworkId: 'w1');
+
+    await controller.close();
+
+    expect(await repository.loadThumbnail('w1'), isNull);
+  });
+
+  test('그리는 동안에는 굽지 않고 나갈 때 한 번 굽는다', () async {
+    // 계획 3 이 브러시 굽기를 "바뀌었을 때만" 으로 만들어 지켜 낸
+    // "그리는 동안 0" 을 썸네일이 무너뜨리면 안 된다.
+    final root = Directory.systemTemp.createTempSync('kkumul_thumb_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: ArtworkRepository(root)),
+    );
+    addTearDown(controller.dispose);
+    await controller.open(dohanId: 'fake', artworkId: 'w1');
+
+    var bakes = 0;
+    controller.thumbnailBaker = () async {
+      bakes++;
+      return Uint8List.fromList([1, 2, 3]);
+    };
+
+    // 이 파일의 FakeDohanSource 캔버스는 **4 x 2** 다(64 x 64 가 아니다).
+    // 영역 2 는 x < 2, 영역 3 은 x >= 2.
+    controller.tapAt(const Offset(0.5, 0.5));
+    controller.tapAt(const Offset(2.5, 0.5));
+    controller.undo();
+    expect(bakes, 0, reason: '칠하는 동안에는 한 번도 굽지 않는다');
+
+    await controller.close();
+
+    expect(bakes, 1, reason: '나갈 때 한 번이다');
+  });
+
+  test('굽다가 터져도 close() 는 조용히 끝난다', () async {
+    // 화면이 사라지는 중이면 텍스처가 이미 해제됐을 수 있다. 썸네일이
+    // 없으면 모아보기가 선화로 대체하므로 아이가 잃는 것은 없다.
+    final root = Directory.systemTemp.createTempSync('kkumul_thumb_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final repository = ArtworkRepository(root);
+    final controller = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: repository),
+    );
+    addTearDown(controller.dispose);
+    await controller.open(dohanId: 'fake', artworkId: 'w1');
+
+    controller.thumbnailBaker = () async => throw StateError('텍스처 없음');
+
+    await expectLater(controller.close(), completes);
+    expect(await repository.loadThumbnail('w1'), isNull);
+  });
 }

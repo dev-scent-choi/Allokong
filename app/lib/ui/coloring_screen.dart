@@ -11,6 +11,7 @@ import '../coloring/canvas_transform.dart';
 import '../coloring/coloring_controller.dart';
 import '../coloring/coloring_painter.dart';
 import '../coloring/sticker_state.dart';
+import '../gallery/thumbnail.dart';
 import '../settings/settings.dart';
 import 'palette_bar.dart';
 import 'shade_button.dart';
@@ -47,6 +48,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_onChanged);
+    // 이미지를 해제하기 전에 뺀다. 그러지 않으면 생명주기 close() 가
+    // 이미 해제된 텍스처로 그리려 든다.
+    widget.controller.thumbnailBaker = null;
     // dart:ui 는 ui.Image·FragmentShader 를 직접 해제하라고 요구한다. 위젯이
     // 사라지는 시점이라 다시 그릴 일이 없으므로 여기서는 안전하다.
     _shader?.dispose();
@@ -121,6 +125,8 @@ class _ColoringScreenState extends State<ColoringScreen>
         ..clear()
         ..addAll(loadedStickers);
     });
+    // 텍스처가 다 올라온 지금부터 썸네일을 구울 수 있다.
+    widget.controller.thumbnailBaker = _bakeThumbnail;
   }
 
   Future<void> _refreshPalette() async {
@@ -130,6 +136,39 @@ class _ColoringScreenState extends State<ColoringScreen>
     // 그 사이 세대가 올라갔으면 이 결과는 버린다.
     if (!mounted || generation != _paletteGeneration) return;
     setState(() => _paletteImage = palette);
+  }
+
+  /// 지금 화면에 보이는 그대로를 썸네일로 굽는다.
+  Future<Uint8List?> _bakeThumbnail() async {
+    final dohan = widget.controller.dohan;
+    final shader = _shader;
+    final regions = _regionsImage;
+    final palette = _paletteImage;
+    final lineart = _lineartImage;
+    if (dohan == null ||
+        shader == null ||
+        regions == null ||
+        palette == null ||
+        lineart == null) {
+      return null;
+    }
+
+    final c = widget.controller;
+    return bakeThumbnail(
+      ColoringPainter(
+        shader: shader,
+        regions: regions,
+        palette: palette,
+        lineart: lineart,
+        canvasSize: dohan.regions.width,
+        brush: c.state.brush,
+        brushRevision: c.state.brush.revision,
+        paintableMask: c.paintableMask,
+        stickers: c.state.stickers.stickers,
+        stickerImages: _stickerImages,
+      ),
+      dohan.regions.width,
+    );
   }
 
   @override

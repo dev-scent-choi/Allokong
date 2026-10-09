@@ -11,6 +11,7 @@ import '../core/artwork_state.dart';
 import '../core/command.dart';
 import '../core/dohan_source.dart';
 import '../gallery/autosave.dart';
+import '../gallery/thumbnail.dart';
 import '../settings/settings.dart';
 import '../ui/palette_shades.dart';
 import 'brush_painter.dart';
@@ -65,6 +66,13 @@ class ColoringController extends ChangeNotifier {
   /// 나온다. 타임스탬프만 쓰면 빠르게 두 번 붙인 스티커가 같은 instanceId 를
   /// 받아, 하나를 지울 때 엉뚱한 자리의 것이 지워진다.
   int _stickerSeq = 0;
+
+  /// 화면을 떠날 때 썸네일을 굽는 함수. 화면이 텍스처를 다 올린 뒤 꽂는다.
+  ///
+  /// 컨트롤러가 직접 구울 수 없는 것은 합성에 필요한 셰이더·영역 텍스처·
+  /// 팔레트·선화·스티커 이미지를 전부 화면이 들고 있기 때문이다.
+  /// `Autosave` 가 `BrushBaker` 를 받는 것과 같은 모양이다.
+  ThumbnailBaker? thumbnailBaker;
 
   DohanPackage? get dohan => _dohan;
   FillState get fills => _state.fills;
@@ -311,9 +319,24 @@ class ColoringController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 화면을 떠나기 전에 예약된 저장을 마무리한다.
+  /// 화면을 떠나기 전에 예약된 저장을 마무리하고 썸네일을 굽는다.
+  ///
+  /// 생명주기 콜백(앱이 물러날 때)에서도 불린다. 그때도 굽는 것이 맞다 —
+  /// 강제 종료로 썸네일 없는 작품이 생기는 경우를 줄여 준다.
   Future<void> close() async {
     await autosave.flush();
+
+    final bake = thumbnailBaker;
+    final id = _artworkId;
+    if (bake == null || id == null) return;
+    try {
+      final png = await bake();
+      if (png != null) await autosave.repository.saveThumbnail(id, png);
+    } on Object catch (error) {
+      // 썸네일이 없으면 모아보기가 선화로 대체한다. 그림을 잃는 것이
+      // 아니므로 여기서 멈춰 세울 이유가 없다.
+      debugPrint('썸네일을 굽지 못했습니다 — 선화로 대체됩니다: $error');
+    }
   }
 
   void _scheduleSave() {

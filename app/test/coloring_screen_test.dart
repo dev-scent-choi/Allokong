@@ -341,6 +341,33 @@ void main() {
 
     expect(controller.state.brush.strokes, hasLength(1));
   });
+
+  testWidgets('화면이 뜨면 썸네일 굽기가 꽂히고 사라지면 빠진다', (tester) async {
+    expect(controller.thumbnailBaker, isNull, reason: '처음에는 없다');
+
+    await tester.pumpWidget(MaterialApp(
+      home: ColoringScreen(controller: controller),
+    ));
+    await tester.pumpAndSettle();
+
+    // 텍스처 올리기는 엔진 콜백이라 FakeAsync 아래에서는 완료되지 않는다.
+    // 실제 존에서 기다려 준다.
+    // 완료 콜백이 FakeAsync 의 마이크로태스크로 들어오므로 펌프도 함께 한다.
+    for (var i = 0; i < 100 && controller.thumbnailBaker == null; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+
+    expect(controller.thumbnailBaker, isNotNull,
+        reason: '텍스처가 올라오면 구울 수 있어야 한다');
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpAndSettle();
+
+    expect(controller.thumbnailBaker, isNull,
+        reason: '해제된 텍스처로 그리려 들면 안 된다');
+  });
 }
 
 /// 위젯 테스트는 저장 경로를 건드리지 않는다.
