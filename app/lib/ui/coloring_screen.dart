@@ -22,7 +22,13 @@ import 'tool_bar.dart';
 class ColoringScreen extends StatefulWidget {
   final ColoringController controller;
 
-  const ColoringScreen({super.key, required this.controller});
+  /// 색칠을 마치고 나가는 길. 셸 위에 띄웠을 때만 준다.
+  ///
+  /// `null` 이면 `완성` 버튼을 보여주지 않는다 — 화면 하나만 띄우는
+  /// 테스트가 그렇다.
+  final Future<void> Function()? onFinish;
+
+  const ColoringScreen({super.key, required this.controller, this.onFinish});
 
   @override
   State<ColoringScreen> createState() => _ColoringScreenState();
@@ -184,6 +190,22 @@ class _ColoringScreenState extends State<ColoringScreen>
         toolbarHeight: 64,
         title: Text(c.dohan?.meta.title ?? '색칠하기'),
         actions: [
+          if (widget.onFinish != null)
+            TextButton(
+              key: const ValueKey('finish-button'),
+              // 기본 TextButton 의 최소 높이는 36 이다. 스펙 10.3 의 64dp 를
+              // 지키려면 직접 줘야 한다.
+              style: TextButton.styleFrom(
+                minimumSize: const Size(64, 64),
+                foregroundColor: const Color(0xFF246B4B),
+                textStyle:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                unawaited(widget.onFinish!());
+              },
+              child: const Text('완성'),
+            ),
           if (c.ageMode == AgeMode.child)
             ShadeButton(shade: c.shade, onCycle: c.cycleShade),
           IconButton(
