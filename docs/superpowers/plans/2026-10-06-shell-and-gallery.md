@@ -79,12 +79,15 @@
 
 ```dart
 await tester.pumpWidget(app);
-// 엔진 콜백은 FakeAsync 아래에서 완료되지 않는다. 실제 존에서 한 박자 돌린다.
-await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-await tester.pumpAndSettle();
+await _settle(tester, until: find.byKey(const ValueKey('coloring-canvas')));
 ```
 
-필요 없을 때 넣어도 해롭지 않다. 빠뜨리면 테스트가 **실패가 아니라 교착**한다.
+`_settle` 은 각 테스트 파일이 들고 있다(아래 태스크들의 테스트 코드에 있다).
+**한 번 기다리는 것으로는 모자라다** — 태스크 4 에서 실측했다. 셰이더 컴파일과
+텍스처 디코딩이 여러 번에 나눠 끝나므로, 조건이 설 때까지 실제 존에서 기다리며
+펌프해야 한다. 기다릴 조건이 있으면 `until:` 로 주는 편이 빠르고 정확하다.
+
+빠뜨리면 테스트가 **실패가 아니라 교착**한다.
 
 ### 나. `ByteData.buffer` 를 쓰지 말 것
 
@@ -1327,9 +1330,17 @@ class FakeDohanSource implements DohanSource {
 
 /// 엔진 콜백(ui.decodeImageFromPixels)은 testWidgets 본문의 FakeAsync
 /// 아래에서 완료되지 않는다. 실제 존에서 한 박자 돌려 준 뒤 펌프한다.
-Future<void> _settle(WidgetTester tester) async {
-  await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)));
+Future<void> _settle(WidgetTester tester, {Finder? until}) async {
+  // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 셰이더
+  // 컴파일과 텍스처 디코딩이 여러 번에 나눠 끝나므로, 조건이 설 때까지
+  // 실제 존에서 기다리며 펌프한다.
+  for (var i = 0; i < 100; i++) {
+    if (until != null && until.evaluate().isNotEmpty) break;
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 25)));
+    await tester.pump();
+    if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+  }
   await tester.pumpAndSettle();
 }
 
@@ -2037,9 +2048,16 @@ void main() {
       );
 
   /// 썸네일 PNG 디코딩은 엔진 콜백이다. 실제 존에서 한 박자 돌린다.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+  Future<void> settle(WidgetTester tester, {Finder? until}) async {
+    // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 조건이
+    // 설 때까지 실제 존에서 기다리며 펌프한다.
+    for (var i = 0; i < 100; i++) {
+      if (until != null && until.evaluate().isNotEmpty) break;
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 25)));
+      await tester.pump();
+      if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+    }
     await tester.pumpAndSettle();
   }
 
@@ -2482,9 +2500,16 @@ void main() {
         ),
       );
 
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+  Future<void> settle(WidgetTester tester, {Finder? until}) async {
+    // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 조건이
+    // 설 때까지 실제 존에서 기다리며 펌프한다.
+    for (var i = 0; i < 100; i++) {
+      if (until != null && until.evaluate().isNotEmpty) break;
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 25)));
+      await tester.pump();
+      if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+    }
     await tester.pumpAndSettle();
   }
 
@@ -3587,9 +3612,16 @@ void main() {
         ),
       );
 
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+  Future<void> settle(WidgetTester tester, {Finder? until}) async {
+    // 한 번 기다리는 것으로는 모자란다 — 태스크 4 에서 실측했다. 조건이
+    // 설 때까지 실제 존에서 기다리며 펌프한다.
+    for (var i = 0; i < 100; i++) {
+      if (until != null && until.evaluate().isNotEmpty) break;
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 25)));
+      await tester.pump();
+      if (until == null && i >= 19) break; // 조건이 없으면 500ms 로 끝낸다
+    }
     await tester.pumpAndSettle();
   }
 
