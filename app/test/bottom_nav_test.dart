@@ -69,10 +69,21 @@ void main() {
     await tester.pumpWidget(host(selected: ShellTab.gallery));
     await tester.pumpAndSettle();
 
-    final slots = tester
-        .widgetList<NavSlot>(find.byType(NavSlot))
-        .toList();
+    final slots = tester.widgetList<NavSlot>(find.byType(NavSlot)).toList();
     expect(slots.where((s) => s.selected), hasLength(1));
     expect(slots.firstWhere((s) => s.selected).tab, ShellTab.gallery);
+
+    // 색 말고 **모양**으로도 달라야 한다 — 상위 스펙 10.1.
+    // 플래그만 세면 fontWeight 줄을 지워도 이 테스트는 초록이다.
+    FontWeight? weightOf(String key) => tester
+        .widget<Text>(find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(Text),
+        ))
+        .style
+        ?.fontWeight;
+
+    expect(weightOf('nav-gallery'), FontWeight.bold, reason: '고른 칸은 굵게');
+    expect(weightOf('nav-play'), FontWeight.normal, reason: '나머지는 보통');
   });
 }
