@@ -58,4 +58,19 @@ class BundledDohanSource implements DohanSource {
       label: dir,
     );
   }
+
+  @override
+  Future<DohanMeta> loadMeta(String id) async {
+    if (!_ids.contains(id)) {
+      throw ArgumentError('내장 도안에 없는 ID 입니다: $id');
+    }
+    final dir = 'assets/dohans/$id';
+    final meta = await _bundle.load('$dir/meta.json');
+    // ByteData 는 더 큰 버퍼의 조각일 수 있다 — load() 와 같은 이유로
+    // .buffer 가 아니라 sublistView 를 쓴다.
+    return DohanMeta.parse(
+      utf8.decode(Uint8List.sublistView(meta)),
+      label: dir,
+    );
+  }
 }

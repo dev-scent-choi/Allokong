@@ -97,4 +97,22 @@ void main() {
           reason: '$id 는 영역이 너무 많다');
     }
   });
+
+  test('메타만 읽으면 선화를 디코딩하지 않는다', () async {
+    final source = BundledDohanSource();
+
+    final meta = await source.loadMeta('flower-01');
+
+    expect(meta.id, 'flower-01');
+    expect(meta.title, '동그라미 꽃');
+    expect(meta.category, 'shape');
+  });
+
+  test('없는 도안의 메타를 읽으면 한국어로 알려준다', () async {
+    expect(
+      () => BundledDohanSource().loadMeta('없는도안'),
+      throwsA(isA<ArgumentError>()
+          .having((e) => e.message, 'message', contains('없는도안'))),
+    );
+  });
 }

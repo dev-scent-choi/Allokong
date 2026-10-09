@@ -20,6 +20,9 @@ class FakeDohanSource implements DohanSource {
   Future<List<String>> listIds() async => ['fake'];
 
   @override
+  Future<DohanMeta> loadMeta(String id) async => (await load(id)).meta;
+
+  @override
   Future<DohanPackage> load(String id) async {
     const w = 4, h = 2;
     final ids = Uint16List(w * h);

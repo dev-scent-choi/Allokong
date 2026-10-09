@@ -10,4 +10,11 @@ abstract class DohanSource {
 
   /// 도안 한 벌을 읽는다. 없는 ID 면 [ArgumentError] 를 던진다.
   Future<DohanPackage> load(String id);
+
+  /// 메타데이터만 읽는다. 없는 ID 면 [ArgumentError] 를 던진다.
+  ///
+  /// `놀기` 는 열두 장의 카테고리와 제목만 있으면 되는데, [load] 는 1024²
+  /// PNG 두 장을 디코딩한다. 화면 하나 여는 데 그 비용을 열두 번 낼 이유가
+  /// 없다.
+  Future<DohanMeta> loadMeta(String id);
 }
