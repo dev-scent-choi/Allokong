@@ -45,6 +45,10 @@ class ColoringController extends ChangeNotifier {
   final UndoStack _undo = UndoStack();
   int _openGeneration = 0;
 
+  /// 여는 도중에 화면이 닫혔는지. 세대 카운터는 동시 open 만 막고 해제는
+  /// 못 막는다.
+  bool _disposed = false;
+
   ui.Image? _mask;
 
   /// 이번 지우개 손짓에서 벗길 영역과 그 이전 색.
@@ -112,11 +116,18 @@ class ColoringController extends ChangeNotifier {
 
     // 빠르게 두 번 열면 먼저 시작한 쪽이 나중에 끝날 수 있다. 그 결과를 얹으면
     // 아이가 마지막에 고른 도안이 아닌 것이 화면에 뜬다.
-    if (generation != _openGeneration) return;
+    if (_disposed || generation != _openGeneration) return;
 
+    // 먼저 받고 나서 가드한다. 기다리는 사이 해제됐다면 이 마스크는 아무도
+    // 해제해 주지 않는다.
+    final mask = await buildPaintableMask(dohan.regions);
+    if (_disposed || generation != _openGeneration) {
+      mask.dispose();
+      return;
+    }
     _dohan = dohan;
     _mask?.dispose();
-    _mask = await buildPaintableMask(dohan.regions);
+    _mask = mask;
     _artworkId = artworkId;
     _undo.clear();
     _state.clear();
@@ -131,7 +142,7 @@ class ColoringController extends ChangeNotifier {
         final restored = await _decodePng(brushPng);
         // 두 번째 await 다. 그 사이에 또 열렸으면 이 결과는 버린다 — 위의
         // 세대 가드와 같은 이유이고, 버리기 전에 해제해야 이미지가 샌다.
-        if (generation != _openGeneration) {
+        if (_disposed || generation != _openGeneration) {
           restored.dispose();
           return;
         }
@@ -146,6 +157,7 @@ class ColoringController extends ChangeNotifier {
     // 복원한 상태가 이미 디스크에 있는 것이므로, 손대지 않은 작품이 첫 저장에서
     // 헛되이 굽지 않도록 여기서 기준선을 잡는다. 반드시 복원 **뒤**다.
     autosave.markBrushWritten(_state.brush.revision);
+    if (_disposed) return;
     notifyListeners();
   }
 
@@ -326,6 +338,9 @@ class ColoringController extends ChangeNotifier {
   Future<void> close() async {
     await autosave.flush();
 
+    // 칠하지 않고 나간 작품까지 폴더를 만들 이유가 없다.
+    if (autosave.saveCount == 0) return;
+
     final bake = thumbnailBaker;
     final id = _artworkId;
     if (bake == null || id == null) return;
@@ -476,6 +491,7 @@ class ColoringController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _mask?.dispose();
     _mask = null;
     _state.brush.base?.dispose();

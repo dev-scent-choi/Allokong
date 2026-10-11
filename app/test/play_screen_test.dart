@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dohan_core/dohan_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:kkumul/coloring/coloring_route.dart' show OpenColoring;
 import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
@@ -44,6 +46,12 @@ class FakeLibrary implements DohanSource {
         regionAnchors: const {},
         createdAt: DateTime.utc(2026, 10, 6),
       );
+}
+
+Uint8List _redPng() {
+  final im = img.Image(width: 8, height: 8, numChannels: 4);
+  img.fill(im, color: img.ColorRgba8(255, 0, 0, 255));
+  return Uint8List.fromList(img.encodePng(im));
 }
 
 void main() {
@@ -241,5 +249,48 @@ void main() {
     await settle(tester);
 
     expect(find.byKey(const ValueKey('continue-tile')), findsOneWidget);
+  });
+
+  testWidgets('이어 그리기 칸은 썸네일이 있으면 그 그림을 보여준다', (tester) async {
+    await tester.runAsync(() async {
+      await repository.save(Artwork(
+        id: 'w1',
+        dohanId: 'animal-a',
+        fills: const {},
+        updatedAt: DateTime.utc(2026, 10, 5),
+      ));
+      await repository.saveThumbnail('w1', _redPng());
+    });
+
+    await tester.pumpWidget(host());
+    await settle(tester, find.byKey(const ValueKey('continue-thumb')));
+
+    expect(find.byKey(const ValueKey('continue-thumb')), findsOneWidget,
+        reason: '아이가 칠한 그림이어야 한다');
+  });
+
+  testWidgets('이어 그리기 칸은 썸네일이 없으면 선화로 떨어진다', (tester) async {
+    await tester.runAsync(() => repository.save(Artwork(
+          id: 'w1',
+          dohanId: 'animal-a',
+          fills: const {},
+          updatedAt: DateTime.utc(2026, 10, 5),
+        )));
+
+    await tester.pumpWidget(host());
+    await settle(tester, find.byKey(const ValueKey('continue-tile')));
+
+    expect(find.byKey(const ValueKey('continue-tile')), findsOneWidget);
+    expect(find.byKey(const ValueKey('continue-thumb')), findsNothing);
+  });
+
+  testWidgets('선화는 칸 크기로 줄여 디코딩한다', (tester) async {
+    await tester.pumpWidget(host());
+    await settle(tester);
+
+    final img = tester.widget<Image>(find.byType(Image).first);
+    expect(img.image, isA<ResizeImage>());
+    expect((img.image as ResizeImage).width, 288,
+        reason: '144dp 칸에 1024 제곱을 통째로 디코딩하면 안 된다');
   });
 }

@@ -88,6 +88,10 @@ class _ColoringSessionState extends State<ColoringSession> {
   late final ColoringController _controller;
   bool _opened = false;
 
+  /// 도안을 끝내 열지 못했다. 스피너만 돌리면 이 화면에는 앱바도 완성
+  /// 버튼도 PopScope 도 없어서 아이가 갇힌다.
+  bool _failed = false;
+
   @override
   void initState() {
     super.initState();
@@ -115,11 +119,18 @@ class _ColoringSessionState extends State<ColoringSession> {
       // 덮어쓴다. 복구용 id 로 비켜서 연다 — 아이는 계속 칠할 수 있고
       // 원본은 손대지 않는다.
       debugPrint('저장된 작품을 열지 못했습니다 — 새 작품으로 시작합니다: $error');
-      await _controller.open(
-        dohanId: widget.dohanId,
-        artworkId: '${widget.artworkId}-복구-'
-            '${DateTime.now().millisecondsSinceEpoch}',
-      );
+      try {
+        await _controller.open(
+          dohanId: widget.dohanId,
+          artworkId: '${widget.artworkId}-복구-'
+              '${DateTime.now().millisecondsSinceEpoch}',
+        );
+      } on Object catch (error) {
+        // 도안 자체를 못 읽는 경우다 — 업데이트에서 빠졌거나 에셋이 깨졌다.
+        debugPrint('도안을 열지 못했습니다: $error');
+        if (mounted) setState(() => _failed = true);
+        return;
+      }
     }
     if (mounted) setState(() => _opened = true);
   }
@@ -138,8 +149,12 @@ class _ColoringSessionState extends State<ColoringSession> {
     if (_finishing) return;
     _finishing = true;
 
-    await _controller.close();
-    if (mounted) Navigator.of(context).pop();
+    try {
+      await _controller.close();
+    } finally {
+      // close() 가 던지거나 실패해도 나가는 길은 열려 있어야 한다.
+      if (mounted) Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -150,6 +165,33 @@ class _ColoringSessionState extends State<ColoringSession> {
 
   @override
   Widget build(BuildContext context) {
+    if (_failed) {
+      // 글을 못 읽는 아이에게는 그림과 큰 버튼이 전부다.
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.sentiment_dissatisfied_outlined,
+                  size: 96, color: Color(0xFFB7BFB8)),
+              const SizedBox(height: 16),
+              const Text('그림을 열지 못했어요', style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 24),
+              FilledButton(
+                key: const ValueKey('open-failed-back'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(160, 64),
+                  textStyle: const TextStyle(fontSize: 18),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('돌아가기'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (!_opened) {
       // 도안을 읽고 마스크를 만드는 동안이다. 아이에게는 한 박자지만
       // 빈 화면을 주면 눌러 볼 것이 없다.

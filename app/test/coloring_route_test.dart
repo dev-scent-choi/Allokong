@@ -46,6 +46,18 @@ class FakeDohanSource implements DohanSource {
   }
 }
 
+/// 도안을 끝내 읽지 못하는 소스. 업데이트에서 빠졌거나 에셋이 깨진 경우다.
+class ThrowingDohanSource implements DohanSource {
+  @override
+  Future<List<String>> listIds() async => [];
+
+  @override
+  Future<DohanMeta> loadMeta(String id) async => throw StateError('없는 도안');
+
+  @override
+  Future<DohanPackage> load(String id) async => throw StateError('없는 도안');
+}
+
 /// 엔진 콜백(ui.decodeImageFromPixels)은 testWidgets 본문의 FakeAsync
 /// 아래에서 완료되지 않는다. 실제 존에서 한 박자 돌려 준 뒤 펌프한다.
 Future<void> _settle(WidgetTester tester, [Finder? until]) async {
@@ -105,6 +117,7 @@ void main() {
     required String artworkId,
     AgeMode ageMode = AgeMode.toddler,
     NavigatorObserver? observer,
+    DohanSource? source,
   }) {
     return MaterialApp(
       navigatorObservers: [if (observer != null) observer],
@@ -113,7 +126,7 @@ void main() {
           builder: (context) => TextButton(
             onPressed: () => openColoring(
               context,
-              source: FakeDohanSource(),
+              source: source ?? FakeDohanSource(),
               repository: repository,
               ageMode: ageMode,
               dohanId: 'fake',
@@ -257,6 +270,24 @@ void main() {
     expect(ids.where((id) => id.startsWith('w1-복구-')), hasLength(1));
     expect(Directory('${root.path}/artworks/w1/artwork.json').existsSync(),
         isTrue, reason: '원본은 손대지 않는다');
+  });
+
+  testWidgets('도안을 끝내 못 열면 돌아갈 버튼이 뜨고 누르면 셸로 돌아온다', (tester) async {
+    // 스피너만 돌리면 그 화면에는 앱바도 완성 버튼도 PopScope 도 없어
+    // 글을 못 읽는 아이가 갇힌다.
+    await tester.pumpWidget(
+        host(artworkId: 'w1', source: ThrowingDohanSource()));
+    await tester.tap(find.text('열기'));
+    final back = find.byKey(const ValueKey('open-failed-back'));
+    await _settle(tester, back);
+
+    expect(back, findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    await tester.tap(back);
+    await _back(tester);
+
+    expect(find.text('열기'), findsOneWidget, reason: '셸로 돌아와야 한다');
   });
 
   testWidgets('완성을 두 번 눌러도 pop 은 한 번이다', (tester) async {

@@ -128,6 +128,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
       'assets/dohans/${a.dohanId}/lineart.png',
       key: ValueKey('lineart-${a.id}'),
       fit: BoxFit.cover,
+      // 144dp 칸에 1024 제곱을 통째로 디코딩하면 칸마다 4.2MB 다.
+      cacheWidth: 288,
+      cacheHeight: 288,
       // 도안이 사라진 작품(앱을 업데이트하며 도안을 뺀 경우)이라도
       // 칸은 남아야 한다. 누르면 색칠 쪽에서 제대로 알려 준다.
       errorBuilder: (_, __, ___) =>

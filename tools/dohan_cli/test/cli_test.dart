@@ -238,6 +238,23 @@ void main() {
       expect(await cli.runDohan(['build', 'only-one-arg']), 64);
     });
 
+    test('CLI 가 --category=shape 를 받아들인다', () async {
+      // buildDohan 은 카테고리를 검증하지 않는다. 막는 것은 argParser 의
+      // allowed 목록뿐이라, 파서를 실제로 지나가야 그 회귀를 잡는다.
+      final input = File('${tmp.path}/in.png')
+        ..writeAsBytesSync(img.encodePng(_fourBoxesImage()));
+
+      final code = await cli.runDohan([
+        'build',
+        '--category=shape',
+        '--canvas-size=512',
+        input.path,
+        '${tmp.path}/out',
+      ]);
+
+      expect(code, 0, reason: 'allowed 목록에 shape 가 없으면 64(UsageException)다');
+    });
+
     test('품질 게이트가 거부하면 1 을 돌려준다', () async {
       final blank = img.Image(width: 64, height: 64, numChannels: 4);
       img.fill(blank, color: img.ColorRgba8(255, 255, 255, 255));

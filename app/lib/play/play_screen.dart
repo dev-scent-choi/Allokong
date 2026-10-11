@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dohan_core/dohan_core.dart';
 import 'package:flutter/material.dart';
@@ -49,6 +50,7 @@ class PlayScreen extends StatefulWidget {
 class _PlayScreenState extends State<PlayScreen> {
   List<DohanMeta>? _metas;
   Artwork? _recent;
+  Uint8List? _recentThumb;
 
   @override
   void initState() {
@@ -76,8 +78,21 @@ class _PlayScreenState extends State<PlayScreen> {
   Future<void> _loadRecent() async {
     // listAll 이 updatedAt 역순으로 준다.
     final all = await widget.repository.listAll();
+    final recent = all.isEmpty ? null : all.first;
+    Uint8List? thumb;
+    if (recent != null) {
+      try {
+        thumb = await widget.repository.loadThumbnail(recent.id);
+      } on Object catch (error) {
+        // 썸네일 한 장 때문에 놀기가 멈추면 안 된다 — 선화로 대체된다.
+        debugPrint('썸네일을 읽지 못했습니다(${recent.id}): $error');
+      }
+    }
     if (!mounted) return;
-    setState(() => _recent = all.isEmpty ? null : all.first);
+    setState(() {
+      _recent = recent;
+      _recentThumb = thumb;
+    });
   }
 
   /// 오늘의 도안. 날짜를 씨앗으로 고르므로 하루 종일 같고 내일 바뀐다.
@@ -123,7 +138,14 @@ class _PlayScreenState extends State<PlayScreen> {
                     dohanId: recent.dohanId,
                     artworkId: recent.id,
                   ),
-                  child: _lineart(recent.dohanId),
+                  child: _recentThumb != null
+                      ? Image.memory(
+                          _recentThumb!,
+                          key: const ValueKey('continue-thumb'),
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        )
+                      : _lineart(recent.dohanId),
                 ),
               ),
               const SizedBox(width: 8),
@@ -158,6 +180,9 @@ class _PlayScreenState extends State<PlayScreen> {
   Widget _lineart(String dohanId) => Image.asset(
         'assets/dohans/$dohanId/lineart.png',
         fit: BoxFit.cover,
+        // 144dp 칸에 1024 제곱을 통째로 디코딩하면 칸마다 4.2MB 다.
+        cacheWidth: 288,
+        cacheHeight: 288,
         // 테스트의 가짜 라이브러리처럼 에셋이 없을 수 있다. 칸 자체는
         // 남아야 아이가 누를 곳을 잃지 않는다.
         errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFF2F2EE)),

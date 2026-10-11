@@ -605,6 +605,41 @@ void main() {
         reason: 'z 순서까지 복원해야 한다');
   });
 
+  test('여는 도중에 dispose 해도 터지지 않는다', () async {
+    final root = Directory.systemTemp.createTempSync('kkumul_disp_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: ArtworkRepository(root)),
+    );
+
+    final opening = controller.open(dohanId: 'fake', artworkId: 'w1');
+    controller.dispose();
+
+    await expectLater(opening, completes);
+  });
+
+  test('칠하지 않고 나가면 썸네일도 폴더도 남기지 않는다', () async {
+    final root = Directory.systemTemp.createTempSync('kkumul_thumb_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = ColoringController(
+      source: FakeDohanSource(),
+      autosave: Autosave(repository: ArtworkRepository(root)),
+    );
+    addTearDown(controller.dispose);
+    await controller.open(dohanId: 'fake', artworkId: 'w1');
+    var bakes = 0;
+    controller.thumbnailBaker = () async {
+      bakes++;
+      return Uint8List.fromList([1]);
+    };
+
+    await controller.close();
+
+    expect(bakes, 0);
+    expect(Directory('${root.path}/artworks/w1').existsSync(), isFalse);
+  });
+
   test('화면을 나가면 썸네일을 굽고 저장한다', () async {
     final root = Directory.systemTemp.createTempSync('kkumul_thumb_');
     addTearDown(() => root.deleteSync(recursive: true));
@@ -618,6 +653,7 @@ void main() {
 
     controller.thumbnailBaker =
         () async => Uint8List.fromList([137, 80, 78, 71, 9]);
+    controller.tapAt(const Offset(0.5, 0.5)); // 저장된 적이 있어야 굽는다
     await controller.close();
 
     expect(await repository.loadThumbnail('w1'),

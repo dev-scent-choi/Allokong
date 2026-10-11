@@ -100,6 +100,12 @@ void main() {
     expect(find.byKey(const ValueKey('thumb-withThumb')), findsOneWidget);
     expect(find.byKey(const ValueKey('lineart-noThumb')), findsOneWidget,
         reason: '강제 종료로 썸네일을 못 구운 경우가 정상 경로에 있다');
+
+    final lineart =
+        tester.widget<Image>(find.byKey(const ValueKey('lineart-noThumb')));
+    expect(lineart.image, isA<ResizeImage>());
+    expect((lineart.image as ResizeImage).width, 288,
+        reason: '144dp 칸에 1024 제곱을 통째로 디코딩하면 안 된다');
   });
 
   testWidgets('작품을 누르면 그 작품을 이어서 연다', (tester) async {
