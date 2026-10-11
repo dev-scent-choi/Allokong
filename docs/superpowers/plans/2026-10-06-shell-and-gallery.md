@@ -3623,6 +3623,7 @@ import 'package:kkumul/coloring/coloring_route.dart' show ColoringSession;
 import 'package:kkumul/core/artwork.dart';
 import 'package:kkumul/core/dohan_source.dart';
 import 'package:kkumul/gallery/artwork_repository.dart';
+import 'package:kkumul/play/play_screen.dart';
 import 'package:kkumul/settings/settings.dart';
 import 'package:kkumul/shell/bottom_nav.dart';
 import 'package:kkumul/shell/placeholder_screen.dart';
@@ -3790,8 +3791,10 @@ void main() {
           matching: find.byType(Scrollable),
         )
         .first;
+    // `playList` 자체가 Scrollable 이므로 `Scrollable.of` 를 쓰면
+    // "context does not contain a Scrollable" 로 던진다. 상태를 직접 집는다.
     double playOffset() =>
-        Scrollable.of(tester.element(playList)).position.pixels;
+        tester.state<ScrollableState>(playList).position.pixels;
 
     await tester.drag(playList, const Offset(0, -200));
     await settle(tester);
