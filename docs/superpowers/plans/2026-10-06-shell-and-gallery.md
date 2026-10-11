@@ -2689,6 +2689,13 @@ void main() {
 Run: `cd app && C:\src\flutter\bin\flutter test test/play_screen_test.dart`
 Expected: FAIL — `package:kkumul/play/play_screen.dart` 가 없다.
 
+> **실행 중 정정 (커밋 `0a08d51`)**: 아래 `build()` 는 `이어 그리기` 와
+> `오늘의 그림` 을 각각 전폭 정사각형으로 둔다. 320×640 에서 재 보니 그러면
+> 카테고리가 전부 2.5쪽 아래로 밀려(스크롤 1569dp) 아이가 도안을 못 찾는다.
+> 머지된 코드는 둘을 한 줄에 나란히 두고 제목을 `바로 시작` 하나로 합친다
+> (스크롤 772dp, `동물` 제목이 첫 화면에 든다). 날짜도 `toUtc()` 가 아니라
+> 지역 달력으로 센다. 아래 코드는 그 수정 **이전**의 모습이다.
+
 - [ ] **Step 5: 구현한다**
 
 `app/lib/play/play_screen.dart`:
@@ -3706,7 +3713,7 @@ void main() {
     await tester.pumpWidget(host());
     await settle(tester);
 
-    expect(find.text('오늘의 그림'), findsOneWidget);
+    expect(find.text('바로 시작'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('nav-gallery')));
     await settle(tester);
@@ -3774,11 +3781,19 @@ void main() {
     await tester.pumpWidget(host());
     await settle(tester);
 
-    double playOffset() => Scrollable.of(
-          tester.element(find.text('오늘의 그림')),
-        ).position.pixels;
+    // 놀기의 **바깥** 목록을 직접 짚는다. `find.descendant` 만 쓰면
+    // 카테고리 격자까지 잡혀 "Found 2 widgets" 로 던진다 — 격자는
+    // 스스로 스크롤하지 않지만 Scrollable 이기는 하다.
+    final playList = find
+        .descendant(
+          of: find.byType(PlayScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    double playOffset() =>
+        Scrollable.of(tester.element(playList)).position.pixels;
 
-    await tester.drag(find.text('오늘의 그림'), const Offset(0, -200));
+    await tester.drag(playList, const Offset(0, -200));
     await settle(tester);
     final scrolled = playOffset();
     expect(scrolled, greaterThan(0));
