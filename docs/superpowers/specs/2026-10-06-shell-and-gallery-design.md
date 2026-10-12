@@ -76,11 +76,15 @@
 `character` 자리에 `shape`(별·하트·꽃 같은 단순 도형)를 둔다.
 
 **이것은 값만 바꾸는 변경이 아니다.** `DohanMeta.category` 자체는 `String` 이지만
-카테고리 목록을 **두 군데가 못박고 있다**:
+카테고리 목록을 **세 군데가 못박고 있다**:
 
 - `tools/dohan_cli/bin/dohan.dart:129` — `allowed: ['animal', 'car', 'dinosaur', 'character']`.
   고치지 않으면 `--category=shape` 가 CLI 에서 거부되어 도안 생성이 멈춘다.
 - `packages/dohan_core/lib/src/dohan_package.dart:14` — 같은 목록을 적은 문서 주석.
+- `tools/dohan_gen/prompts.py:3` — `CATEGORIES = ("animal", "car", "dinosaur", "character")`,
+  거기에 `character` 전용 프롬프트와 "기존 프랜차이즈를 닮지 않게" 하는 안전 문구까지
+  딸려 있다. **계획 4 는 이것을 고치지 않았다** — 실행 중에야 발견했고, `dohan_gen` 은
+  앱이 부르지 않는 별도 도구라 당장 깨지는 것이 없다. 후속 문서 §2 참조.
 
 둘 다 `character` → `shape` 로 바꾼다. 진짜 캐릭터 도안이 생기면 목록에 도로 넣는다
 (둘은 배타적이지 않다 — 그때는 다섯 개가 된다).
